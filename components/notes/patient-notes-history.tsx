@@ -12,8 +12,10 @@ import {
   Activity,
   ChevronRight,
   X,
+  Brain,
 } from 'lucide-react';
-import type { PatientNoteSummary } from '@/lib/types';
+import { AnalysisViewer } from '@/components/analyzer/analysis-viewer';
+import type { PatientNoteSummary, ComprehensiveAnalysisOutput } from '@/lib/types';
 
 interface PatientNotesHistoryProps {
   patientId: number;
@@ -52,8 +54,17 @@ interface NoteDetail {
   output: {
     content?: string;
     differentialDiagnosis?: { diagnosis: string; likelihood: string }[];
+    admission?: ComprehensiveAnalysisOutput['admission'];
+    careCoordination?: ComprehensiveAnalysisOutput['careCoordination'];
+    dischargeDestination?: ComprehensiveAnalysisOutput['dischargeDestination'];
+    cognitiveBias?: ComprehensiveAnalysisOutput['cognitiveBias'];
+    generatedAt?: string;
   };
   createdAt: string;
+}
+
+function isComprehensiveAnalysis(output: NoteDetail['output']): output is ComprehensiveAnalysisOutput {
+  return !!(output.admission && output.careCoordination && output.dischargeDestination && output.cognitiveBias);
 }
 
 export function PatientNotesHistory({ patientId }: PatientNotesHistoryProps) {
@@ -144,31 +155,35 @@ export function PatientNotesHistory({ patientId }: PatientNotesHistoryProps) {
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            <ScrollArea className="h-[300px] rounded border p-3">
-              {selectedNote.output.content ? (
-                <pre className="whitespace-pre-wrap text-sm font-mono">
-                  {selectedNote.output.content}
-                </pre>
-              ) : selectedNote.output.differentialDiagnosis ? (
-                <div className="space-y-2">
-                  <p className="font-medium text-sm">Differential Diagnosis:</p>
-                  <ul className="space-y-1">
-                    {selectedNote.output.differentialDiagnosis.map((dx, i) => (
-                      <li key={i} className="text-sm flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">
-                          {dx.likelihood}
-                        </Badge>
-                        {dx.diagnosis}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : (
-                <pre className="whitespace-pre-wrap text-sm">
-                  {JSON.stringify(selectedNote.output, null, 2)}
-                </pre>
-              )}
-            </ScrollArea>
+            {selectedNote.type === 'analysis' && isComprehensiveAnalysis(selectedNote.output) ? (
+              <AnalysisViewer analysis={selectedNote.output as ComprehensiveAnalysisOutput} compact />
+            ) : (
+              <ScrollArea className="h-[300px] rounded border p-3">
+                {selectedNote.output.content ? (
+                  <pre className="whitespace-pre-wrap text-sm font-mono">
+                    {selectedNote.output.content}
+                  </pre>
+                ) : selectedNote.output.differentialDiagnosis ? (
+                  <div className="space-y-2">
+                    <p className="font-medium text-sm">Differential Diagnosis:</p>
+                    <ul className="space-y-1">
+                      {selectedNote.output.differentialDiagnosis.map((dx, i) => (
+                        <li key={i} className="text-sm flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs">
+                            {dx.likelihood}
+                          </Badge>
+                          {dx.diagnosis}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <pre className="whitespace-pre-wrap text-sm">
+                    {JSON.stringify(selectedNote.output, null, 2)}
+                  </pre>
+                )}
+              </ScrollArea>
+            )}
           </div>
         ) : (
           <div className="space-y-2">

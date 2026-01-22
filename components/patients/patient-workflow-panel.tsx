@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,9 +16,12 @@ import {
   Plus,
   Wand2,
   CheckCircle,
+  Brain,
+  RefreshCw,
 } from 'lucide-react';
 import { NoteDisplay } from '@/components/notes/note-display';
-import type { Patient, HpOutput, ProgressNoteOutput } from '@/lib/types';
+import { AnalysisViewer } from '@/components/analyzer/analysis-viewer';
+import type { Patient, HpOutput, ProgressNoteOutput, ComprehensiveAnalysisOutput } from '@/lib/types';
 
 interface PatientWorkflowPanelProps {
   patient: Patient;
@@ -38,9 +41,109 @@ export function PatientWorkflowPanel({ patient, onPatientUpdated }: PatientWorkf
   const [activeTab, setActiveTab] = useState('daily');
   const [isGeneratingHp, setIsGeneratingHp] = useState(false);
   const [isGeneratingNote, setIsGeneratingNote] = useState(false);
+  const [isRunningAnalysis, setIsRunningAnalysis] = useState(false);
   const [generatedHp, setGeneratedHp] = useState<HpOutput | null>(null);
   const [generatedNote, setGeneratedNote] = useState<ProgressNoteOutput | null>(null);
+  const [savedAnalysis, setSavedAnalysis] = useState<ComprehensiveAnalysisOutput | null>(null);
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [analysisInput, setAnalysisInput] = useState('');
+
+  // Fetch saved analysis on mount
+  useEffect(() => {
+    fetchSavedAnalysis();
+  }, [patient.id]);
+
+  const fetchSavedAnalysis = async () => {
+    setLoadingAnalysis(true);
+    try {
+      const response = await fetch(`/api/patients/${patient.id}/notes`);
+      if (response.ok) {
+        const notes = await response.json();
+        // Find the most recent analysis note
+        const analysisNote = notes.find((n: { type: string }) => n.type === 'analysis');
+        if (analysisNote) {
+          // Fetch the full note details
+          const detailResponse = await fetch(`/api/patients/${patient.id}/notes?noteId=${analysisNote.id}`);
+          if (detailResponse.ok) {
+            const detail = await detailResponse.json();
+            // The output contains the full ComprehensiveAnalysisOutput
+            if (detail.output) {
+              setSavedAnalysis(detail.output);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch saved analysis:', err);
+    } finally {
+      setLoadingAnalysis(false);
+    }
+  };
+
+  const handleRunAnalysis = async () => {
+    if (!analysisInput.trim() && !patient.notes) {
+      setError('Please provide clinical notes for analysis');
+      return;
+    }
+
+    setIsRunningAnalysis(true);
+    setError(null);
+
+    try {
+      // Build admission note from patient data if no input provided
+      const admissionNote = analysisInput.trim() || buildAdmissionNoteFromPatient(patient);
+
+      const response = await fetch('/api/analyze/comprehensive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          admissionNote,
+          patientId: patient.id,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to run analysis');
+      }
+
+      const analysis: ComprehensiveAnalysisOutput = await response.json();
+      setSavedAnalysis(analysis);
+      setAnalysisInput('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setIsRunningAnalysis(false);
+    }
+  };
+
+  function buildAdmissionNoteFromPatient(p: Patient): string {
+    const parts: string[] = [];
+    parts.push(`Patient: ${p.initials}`);
+    if (p.admissionDate) parts.push(`Admission Date: ${p.admissionDate}`);
+    if (p.primaryDiagnoses.length > 0) parts.push(`Primary Diagnoses: ${p.primaryDiagnoses.join(', ')}`);
+    if (p.codeStatus) parts.push(`Code Status: ${p.codeStatus}`);
+    if (p.allergies.length > 0) parts.push(`Allergies: ${p.allergies.join(', ')}`);
+    if (p.activeMedications.length > 0) {
+      parts.push(`Medications: ${p.activeMedications.map(m => `${m.name} ${m.dose} ${m.route} ${m.frequency}`).join('; ')}`);
+    }
+    if (p.recentVitals) {
+      const v = p.recentVitals;
+      const vitals: string[] = [];
+      if (v.temperature) vitals.push(`T ${v.temperature}`);
+      if (v.heartRate) vitals.push(`HR ${v.heartRate}`);
+      if (v.bloodPressure) vitals.push(`BP ${v.bloodPressure}`);
+      if (v.respiratoryRate) vitals.push(`RR ${v.respiratoryRate}`);
+      if (v.oxygenSaturation) vitals.push(`SpO2 ${v.oxygenSaturation}%`);
+      if (vitals.length > 0) parts.push(`Vitals: ${vitals.join(', ')}`);
+    }
+    if (p.recentLabs.length > 0) {
+      parts.push(`Labs: ${p.recentLabs.map(l => `${l.name}: ${l.value}`).join(', ')}`);
+    }
+    if (p.notes) parts.push(`Clinical Notes: ${p.notes}`);
+    return parts.join('\n');
+  }
 
   // Daily update form state
   const [dailyData, setDailyData] = useState<DailyUpdateData>({
@@ -177,14 +280,18 @@ export function PatientWorkflowPanel({ patient, onPatientUpdated }: PatientWorkf
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="daily" className="gap-2">
               <ClipboardList className="h-4 w-4" />
-              Daily Progress Note
+              Progress Note
+            </TabsTrigger>
+            <TabsTrigger value="analysis" className="gap-2">
+              <Brain className="h-4 w-4" />
+              Analysis
             </TabsTrigger>
             <TabsTrigger value="hp" className="gap-2">
               <FileText className="h-4 w-4" />
-              Generate H&P
+              H&P
             </TabsTrigger>
           </TabsList>
 
@@ -302,6 +409,82 @@ export function PatientWorkflowPanel({ patient, onPatientUpdated }: PatientWorkf
                 onRegenerate={handleGenerateProgressNote}
                 isLoading={isGeneratingNote}
               />
+            )}
+          </TabsContent>
+
+          {/* Analysis Tab */}
+          <TabsContent value="analysis" className="space-y-4 mt-4">
+            {loadingAnalysis ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : savedAnalysis ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    Analysis saved to patient profile
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSavedAnalysis(null);
+                      setAnalysisInput('');
+                    }}
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Run New Analysis
+                  </Button>
+                </div>
+                <AnalysisViewer analysis={savedAnalysis} />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-muted/50 rounded-lg p-3 text-sm">
+                  <p>
+                    Run AI clinical analysis to generate differential diagnosis, workup recommendations,
+                    cognitive bias check, and discharge planning. Results will be saved to the patient profile.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="analysisInput">
+                    Clinical Notes (optional - will use patient profile data if empty)
+                  </Label>
+                  <Textarea
+                    id="analysisInput"
+                    value={analysisInput}
+                    onChange={(e) => setAnalysisInput(e.target.value)}
+                    placeholder="Paste additional clinical notes, ER documentation, or leave empty to analyze from patient profile..."
+                    rows={6}
+                  />
+                </div>
+
+                {error && activeTab === 'analysis' && (
+                  <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
+                    {error}
+                  </div>
+                )}
+
+                <Button
+                  onClick={handleRunAnalysis}
+                  disabled={isRunningAnalysis}
+                  className="w-full"
+                >
+                  {isRunningAnalysis ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Running AI Analysis...
+                    </>
+                  ) : (
+                    <>
+                      <Brain className="h-4 w-4 mr-2" />
+                      Run Clinical Analysis
+                    </>
+                  )}
+                </Button>
+              </div>
             )}
           </TabsContent>
 
