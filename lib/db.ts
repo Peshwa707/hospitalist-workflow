@@ -1,6 +1,9 @@
 import Database from 'better-sqlite3';
 import path from 'path';
-import type { DBNote, NoteHistoryItem, Patient, DBPatient, Medication, LabResult, Vitals } from './types';
+import type {
+  DBNote, NoteHistoryItem, Patient, DBPatient,
+  Feedback, DBFeedback, AnalysisMetrics, DBAnalysisMetrics
+} from './types';
 
 // Database file stored in project root
 const DB_PATH = path.join(process.cwd(), 'hospitalist.db');
@@ -62,6 +65,44 @@ function initializeSchema() {
     CREATE INDEX IF NOT EXISTS idx_notes_patient ON notes(patient_initials);
     CREATE INDEX IF NOT EXISTS idx_notes_patient_id ON notes(patient_id);
     CREATE INDEX IF NOT EXISTS idx_patients_initials ON patients(initials);
+  `);
+
+  // ML Integration: Feedback and Analysis Metrics tables
+  database.exec(`
+    -- Feedback on AI-generated analyses
+    CREATE TABLE IF NOT EXISTS feedback (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+      rating INTEGER CHECK(rating BETWEEN 1 AND 5),
+      was_helpful BOOLEAN,
+      was_accurate BOOLEAN,
+      was_used BOOLEAN,
+      modifications TEXT,
+      feedback_text TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Metrics for each AI call (for learning signals)
+    CREATE TABLE IF NOT EXISTS analysis_metrics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+      analysis_type TEXT NOT NULL,
+      model_used TEXT NOT NULL,
+      prompt_version TEXT DEFAULT 'v1',
+      input_tokens INTEGER,
+      output_tokens INTEGER,
+      latency_ms INTEGER,
+      finish_reason TEXT,
+      error_code TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_feedback_note ON feedback(note_id);
+    CREATE INDEX IF NOT EXISTS idx_feedback_rating ON feedback(rating);
+    CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at);
+    CREATE INDEX IF NOT EXISTS idx_metrics_note ON analysis_metrics(note_id);
+    CREATE INDEX IF NOT EXISTS idx_metrics_model ON analysis_metrics(model_used);
+    CREATE INDEX IF NOT EXISTS idx_metrics_type ON analysis_metrics(analysis_type);
   `);
 }
 
@@ -325,7 +366,7 @@ export function searchPatients(searchTerm: string): Patient[] {
 
 // Update saveNote to optionally include patient_id
 export function saveNoteWithPatient(
-  type: 'progress' | 'discharge' | 'analysis',
+  type: 'progress' | 'discharge' | 'analysis' | 'hp',
   patientInitials: string,
   input: object,
   output: object,
@@ -346,4 +387,260 @@ export function saveNoteWithPatient(
   );
 
   return result.lastInsertRowid as number;
+}
+
+// ============ Feedback CRUD Operations ============
+
+function dbFeedbackToFeedback(row: DBFeedback): Feedback {
+  return {
+    id: row.id,
+    noteId: row.note_id,
+    rating: row.rating ?? undefined,
+    wasHelpful: row.was_helpful === 1,
+    wasAccurate: row.was_accurate === 1,
+    wasUsed: row.was_used === 1,
+    modifications: row.modifications ?? undefined,
+    feedbackText: row.feedback_text ?? undefined,
+    createdAt: row.created_at,
+  };
+}
+
+export function saveFeedback(feedback: Omit<Feedback, 'id' | 'createdAt'>): number {
+  const database = getDb();
+  const stmt = database.prepare(`
+    INSERT INTO feedback (note_id, rating, was_helpful, was_accurate, was_used, modifications, feedback_text)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const result = stmt.run(
+    feedback.noteId,
+    feedback.rating ?? null,
+    feedback.wasHelpful !== undefined ? (feedback.wasHelpful ? 1 : 0) : null,
+    feedback.wasAccurate !== undefined ? (feedback.wasAccurate ? 1 : 0) : null,
+    feedback.wasUsed !== undefined ? (feedback.wasUsed ? 1 : 0) : null,
+    feedback.modifications ?? null,
+    feedback.feedbackText ?? null
+  );
+
+  return result.lastInsertRowid as number;
+}
+
+export function getFeedbackByNoteId(noteId: number): Feedback | null {
+  const database = getDb();
+  const stmt = database.prepare('SELECT * FROM feedback WHERE note_id = ? ORDER BY created_at DESC LIMIT 1');
+  const row = stmt.get(noteId) as DBFeedback | undefined;
+  return row ? dbFeedbackToFeedback(row) : null;
+}
+
+export function getAllFeedback(limit: number = 100, offset: number = 0): Feedback[] {
+  const database = getDb();
+  const stmt = database.prepare('SELECT * FROM feedback ORDER BY created_at DESC LIMIT ? OFFSET ?');
+  const rows = stmt.all(limit, offset) as DBFeedback[];
+  return rows.map(dbFeedbackToFeedback);
+}
+
+export function updateFeedback(id: number, feedback: Partial<Feedback>): boolean {
+  const database = getDb();
+  const updates: string[] = [];
+  const values: (string | number | null)[] = [];
+
+  if (feedback.rating !== undefined) {
+    updates.push('rating = ?');
+    values.push(feedback.rating);
+  }
+  if (feedback.wasHelpful !== undefined) {
+    updates.push('was_helpful = ?');
+    values.push(feedback.wasHelpful ? 1 : 0);
+  }
+  if (feedback.wasAccurate !== undefined) {
+    updates.push('was_accurate = ?');
+    values.push(feedback.wasAccurate ? 1 : 0);
+  }
+  if (feedback.wasUsed !== undefined) {
+    updates.push('was_used = ?');
+    values.push(feedback.wasUsed ? 1 : 0);
+  }
+  if (feedback.modifications !== undefined) {
+    updates.push('modifications = ?');
+    values.push(feedback.modifications);
+  }
+  if (feedback.feedbackText !== undefined) {
+    updates.push('feedback_text = ?');
+    values.push(feedback.feedbackText);
+  }
+
+  if (updates.length === 0) return false;
+
+  values.push(id);
+  const stmt = database.prepare(`UPDATE feedback SET ${updates.join(', ')} WHERE id = ?`);
+  const result = stmt.run(...values);
+  return result.changes > 0;
+}
+
+// ============ Analysis Metrics CRUD Operations ============
+
+function dbMetricsToMetrics(row: DBAnalysisMetrics): AnalysisMetrics {
+  return {
+    id: row.id,
+    noteId: row.note_id,
+    analysisType: row.analysis_type,
+    modelUsed: row.model_used,
+    promptVersion: row.prompt_version,
+    inputTokens: row.input_tokens ?? undefined,
+    outputTokens: row.output_tokens ?? undefined,
+    latencyMs: row.latency_ms ?? undefined,
+    finishReason: row.finish_reason ?? undefined,
+    errorCode: row.error_code ?? undefined,
+    createdAt: row.created_at,
+  };
+}
+
+export function saveAnalysisMetrics(metrics: Omit<AnalysisMetrics, 'id' | 'createdAt'>): number {
+  const database = getDb();
+  const stmt = database.prepare(`
+    INSERT INTO analysis_metrics (note_id, analysis_type, model_used, prompt_version, input_tokens, output_tokens, latency_ms, finish_reason, error_code)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const result = stmt.run(
+    metrics.noteId,
+    metrics.analysisType,
+    metrics.modelUsed,
+    metrics.promptVersion || 'v1',
+    metrics.inputTokens ?? null,
+    metrics.outputTokens ?? null,
+    metrics.latencyMs ?? null,
+    metrics.finishReason ?? null,
+    metrics.errorCode ?? null
+  );
+
+  return result.lastInsertRowid as number;
+}
+
+export function getMetricsByNoteId(noteId: number): AnalysisMetrics | null {
+  const database = getDb();
+  const stmt = database.prepare('SELECT * FROM analysis_metrics WHERE note_id = ?');
+  const row = stmt.get(noteId) as DBAnalysisMetrics | undefined;
+  return row ? dbMetricsToMetrics(row) : null;
+}
+
+export function getMetricsAggregates(): {
+  totalAnalyses: number;
+  byType: { type: string; count: number; avgLatency: number; avgTokens: number }[];
+  byModel: { model: string; count: number; avgLatency: number; avgTokens: number }[];
+} {
+  const database = getDb();
+
+  const totalStmt = database.prepare('SELECT COUNT(*) as count FROM analysis_metrics');
+  const totalResult = totalStmt.get() as { count: number };
+
+  const byTypeStmt = database.prepare(`
+    SELECT
+      analysis_type as type,
+      COUNT(*) as count,
+      AVG(latency_ms) as avgLatency,
+      AVG(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) as avgTokens
+    FROM analysis_metrics
+    GROUP BY analysis_type
+  `);
+  const byType = byTypeStmt.all() as { type: string; count: number; avgLatency: number; avgTokens: number }[];
+
+  const byModelStmt = database.prepare(`
+    SELECT
+      model_used as model,
+      COUNT(*) as count,
+      AVG(latency_ms) as avgLatency,
+      AVG(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) as avgTokens
+    FROM analysis_metrics
+    GROUP BY model_used
+  `);
+  const byModel = byModelStmt.all() as { model: string; count: number; avgLatency: number; avgTokens: number }[];
+
+  return {
+    totalAnalyses: totalResult.count,
+    byType,
+    byModel,
+  };
+}
+
+export function getFeedbackAggregates(): {
+  totalFeedback: number;
+  averageRating: number;
+  helpfulRate: number;
+  accuracyRate: number;
+  usageRate: number;
+  byType: {
+    type: string;
+    count: number;
+    avgRating: number;
+    helpfulRate: number;
+    accuracyRate: number;
+    usageRate: number;
+  }[];
+  recentTrend: { date: string; avgRating: number; count: number }[];
+} {
+  const database = getDb();
+
+  const totalStmt = database.prepare('SELECT COUNT(*) as count FROM feedback');
+  const totalResult = totalStmt.get() as { count: number };
+
+  const avgStmt = database.prepare(`
+    SELECT
+      AVG(rating) as avgRating,
+      AVG(CASE WHEN was_helpful = 1 THEN 1.0 ELSE 0.0 END) as helpfulRate,
+      AVG(CASE WHEN was_accurate = 1 THEN 1.0 ELSE 0.0 END) as accuracyRate,
+      AVG(CASE WHEN was_used = 1 THEN 1.0 ELSE 0.0 END) as usageRate
+    FROM feedback
+    WHERE rating IS NOT NULL
+  `);
+  const avgResult = avgStmt.get() as {
+    avgRating: number | null;
+    helpfulRate: number | null;
+    accuracyRate: number | null;
+    usageRate: number | null;
+  };
+
+  const byTypeStmt = database.prepare(`
+    SELECT
+      n.type as type,
+      COUNT(*) as count,
+      AVG(f.rating) as avgRating,
+      AVG(CASE WHEN f.was_helpful = 1 THEN 1.0 ELSE 0.0 END) as helpfulRate,
+      AVG(CASE WHEN f.was_accurate = 1 THEN 1.0 ELSE 0.0 END) as accuracyRate,
+      AVG(CASE WHEN f.was_used = 1 THEN 1.0 ELSE 0.0 END) as usageRate
+    FROM feedback f
+    JOIN notes n ON f.note_id = n.id
+    GROUP BY n.type
+  `);
+  const byType = byTypeStmt.all() as {
+    type: string;
+    count: number;
+    avgRating: number;
+    helpfulRate: number;
+    accuracyRate: number;
+    usageRate: number;
+  }[];
+
+  const trendStmt = database.prepare(`
+    SELECT
+      date(created_at) as date,
+      AVG(rating) as avgRating,
+      COUNT(*) as count
+    FROM feedback
+    WHERE rating IS NOT NULL
+    GROUP BY date(created_at)
+    ORDER BY date DESC
+    LIMIT 30
+  `);
+  const recentTrend = trendStmt.all() as { date: string; avgRating: number; count: number }[];
+
+  return {
+    totalFeedback: totalResult.count,
+    averageRating: avgResult.avgRating ?? 0,
+    helpfulRate: avgResult.helpfulRate ?? 0,
+    accuracyRate: avgResult.accuracyRate ?? 0,
+    usageRate: avgResult.usageRate ?? 0,
+    byType,
+    recentTrend,
+  };
 }

@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { PatientList } from '@/components/patients/patient-list';
 import { PatientForm } from '@/components/patients/patient-form';
 import { EmrImportModal } from '@/components/emr/emr-import-modal';
+import { EmrPatientCreator } from '@/components/emr/emr-patient-creator';
+import { PatientWorkflowPanel } from '@/components/patients/patient-workflow-panel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,7 +21,7 @@ import {
 } from 'lucide-react';
 import type { Patient } from '@/lib/types';
 
-type ViewMode = 'list' | 'detail' | 'form' | 'emr-import';
+type ViewMode = 'list' | 'detail' | 'form' | 'emr-import' | 'emr-create';
 
 export default function PatientsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -53,6 +55,8 @@ export default function PatientsPage() {
       setViewMode('detail');
     } else if (viewMode === 'emr-import') {
       setViewMode('detail');
+    } else if (viewMode === 'emr-create') {
+      setViewMode('list');
     } else {
       setViewMode('list');
       setSelectedPatient(null);
@@ -66,6 +70,16 @@ export default function PatientsPage() {
 
   const handleEmrImported = (updatedPatient: Patient) => {
     setSelectedPatient(updatedPatient);
+    setViewMode('detail');
+    setRefreshTrigger((prev) => prev + 1);
+  };
+
+  const handleCreateFromEmr = () => {
+    setViewMode('emr-create');
+  };
+
+  const handlePatientCreatedFromEmr = (patient: Patient) => {
+    setSelectedPatient(patient);
     setViewMode('detail');
     setRefreshTrigger((prev) => prev + 1);
   };
@@ -280,6 +294,15 @@ export default function PatientsPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Workflow Panel - H&P and Progress Notes */}
+        <PatientWorkflowPanel
+          patient={selectedPatient}
+          onPatientUpdated={(updated) => {
+            setSelectedPatient(updated);
+            setRefreshTrigger((prev) => prev + 1);
+          }}
+        />
       </div>
     );
   };
@@ -301,6 +324,7 @@ export default function PatientsPage() {
           onSelectPatient={handleSelectPatient}
           onEditPatient={handleEditPatient}
           onNewPatient={handleNewPatient}
+          onCreateFromEmr={handleCreateFromEmr}
           selectedPatientId={selectedPatient?.id}
           refreshTrigger={refreshTrigger}
         />
@@ -331,6 +355,19 @@ export default function PatientsPage() {
           <EmrImportModal
             patient={selectedPatient}
             onImported={handleEmrImported}
+            onCancel={handleBack}
+          />
+        </div>
+      )}
+
+      {viewMode === 'emr-create' && (
+        <div className="space-y-4">
+          <Button variant="ghost" onClick={handleBack}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to List
+          </Button>
+          <EmrPatientCreator
+            onPatientCreated={handlePatientCreatedFromEmr}
             onCancel={handleBack}
           />
         </div>

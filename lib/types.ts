@@ -378,3 +378,113 @@ export interface DBNote {
   output_json: string;
   created_at: string;
 }
+
+// ML Integration: Feedback and Learning Types
+
+export interface Feedback {
+  id?: number;
+  noteId: number;
+  rating?: number;  // 1-5
+  wasHelpful?: boolean;
+  wasAccurate?: boolean;
+  wasUsed?: boolean;
+  modifications?: string;
+  feedbackText?: string;
+  createdAt?: string;
+}
+
+export interface DBFeedback {
+  id: number;
+  note_id: number;
+  rating: number | null;
+  was_helpful: number | null;  // SQLite stores booleans as 0/1
+  was_accurate: number | null;
+  was_used: number | null;
+  modifications: string | null;
+  feedback_text: string | null;
+  created_at: string;
+}
+
+export interface AnalysisMetrics {
+  id?: number;
+  noteId: number;
+  analysisType: string;
+  modelUsed: string;
+  promptVersion: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  latencyMs?: number;
+  finishReason?: string;
+  errorCode?: string;
+  createdAt?: string;
+}
+
+export interface DBAnalysisMetrics {
+  id: number;
+  note_id: number;
+  analysis_type: string;
+  model_used: string;
+  prompt_version: string;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  latency_ms: number | null;
+  finish_reason: string | null;
+  error_code: string | null;
+  created_at: string;
+}
+
+export interface LearningInsight {
+  analysisType: string;
+  averageRating: number;
+  totalFeedback: number;
+  helpfulRate: number;
+  accuracyRate: number;
+  usageRate: number;
+  trend: 'improving' | 'stable' | 'declining';
+}
+
+export interface DashboardMetrics {
+  totalAnalyses: number;
+  totalFeedback: number;
+  averageRating: number;
+  feedbackRate: number;
+  byType: Record<string, LearningInsight>;
+  recentTrend: { date: string; rating: number; count: number }[];
+  modelPerformance: {
+    model: string;
+    avgLatency: number;
+    avgTokens: number;
+    count: number;
+  }[];
+}
+
+// H&P Generation Types
+export interface HpInput {
+  patientId: number;
+  chiefComplaint?: string;
+  additionalHistory?: string;
+}
+
+export interface HpOutput {
+  id?: number;
+  content: string;
+  generatedAt: string;
+  patientId: number;
+  patientInitials: string;
+}
+
+// EMR-to-Patient Profile Types
+export interface ParsedPatientProfile {
+  initials: string | null;
+  roomNumber: string | null;
+  admissionDate: string | null;
+  primaryDiagnoses: string[];
+  allergies: string[];
+  codeStatus: string | null;
+  vitals: Vitals | null;
+  labs: LabResult[];
+  medications: Medication[];
+  parseNotes: string;
+  confidence: 'high' | 'medium' | 'low';
+  extractedFrom: 'admission_note' | 'progress_note' | 'hp' | 'discharge' | 'unknown';
+}

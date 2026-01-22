@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Loader2,
   AlertCircle,
+  FileInput,
 } from 'lucide-react';
 import type { Patient } from '@/lib/types';
 
@@ -21,6 +22,7 @@ interface PatientListProps {
   onSelectPatient: (patient: Patient) => void;
   onEditPatient: (patient: Patient) => void;
   onNewPatient: () => void;
+  onCreateFromEmr: () => void;
   selectedPatientId?: number;
   refreshTrigger?: number;
 }
@@ -29,6 +31,7 @@ export function PatientList({
   onSelectPatient,
   onEditPatient,
   onNewPatient,
+  onCreateFromEmr,
   selectedPatientId,
   refreshTrigger,
 }: PatientListProps) {
@@ -99,10 +102,16 @@ export function PatientList({
               {patients.length} patient{patients.length !== 1 ? 's' : ''} in system
             </CardDescription>
           </div>
-          <Button onClick={onNewPatient}>
-            <UserPlus className="h-4 w-4 mr-2" />
-            New Patient
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onCreateFromEmr}>
+              <FileInput className="h-4 w-4 mr-2" />
+              Import from EMR
+            </Button>
+            <Button onClick={onNewPatient}>
+              <UserPlus className="h-4 w-4 mr-2" />
+              New Patient
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
