@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -14,6 +14,8 @@ import {
   CheckCircle,
   ChevronDown,
   ChevronUp,
+  Zap,
+  Settings2,
 } from 'lucide-react';
 import type { Patient, ProgressNoteOutput } from '@/lib/types';
 import { NoteEditor } from './note-editor';
@@ -24,6 +26,37 @@ interface ProgressNoteGeneratorProps {
   previousNoteType: 'hp' | 'progress';
   hospitalDay: number;
   onNoteGenerated: (note: ProgressNoteOutput) => void;
+  quickMode?: boolean;
+}
+
+// Helper to format vitals from patient data
+function formatVitalsFromPatient(patient: Patient): string {
+  if (!patient.recentVitals) return '';
+  const v = patient.recentVitals;
+  const parts: string[] = [];
+  if (v.temperature) parts.push(`T ${v.temperature}`);
+  if (v.heartRate) parts.push(`HR ${v.heartRate}`);
+  if (v.bloodPressure) parts.push(`BP ${v.bloodPressure}`);
+  if (v.respiratoryRate) parts.push(`RR ${v.respiratoryRate}`);
+  if (v.oxygenSaturation) {
+    let o2 = `SpO2 ${v.oxygenSaturation}%`;
+    if (v.oxygenDevice) o2 += ` on ${v.oxygenDevice}`;
+    parts.push(o2);
+  }
+  return parts.join(', ');
+}
+
+// Helper to format labs from patient data
+function formatLabsFromPatient(patient: Patient): string {
+  if (!patient.recentLabs || patient.recentLabs.length === 0) return '';
+  return patient.recentLabs
+    .map((lab) => {
+      let str = `${lab.name}: ${lab.value}`;
+      if (lab.unit) str += ` ${lab.unit}`;
+      if (lab.flag) str += ` (${lab.flag})`;
+      return str;
+    })
+    .join(', ');
 }
 
 export function ProgressNoteGenerator({
@@ -32,12 +65,14 @@ export function ProgressNoteGenerator({
   previousNoteType,
   hospitalDay,
   onNoteGenerated,
+  quickMode: initialQuickMode = false,
 }: ProgressNoteGeneratorProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatedNote, setGeneratedNote] = useState<ProgressNoteOutput | null>(null);
   const [copied, setCopied] = useState(false);
   const [showPreviousNote, setShowPreviousNote] = useState(false);
+  const [isQuickMode, setIsQuickMode] = useState(initialQuickMode);
 
   // Form state for daily updates
   const [subjective, setSubjective] = useState('');
@@ -46,6 +81,14 @@ export function ProgressNoteGenerator({
   const [physicalExam, setPhysicalExam] = useState('');
   const [assessmentNotes, setAssessmentNotes] = useState('');
   const [planNotes, setPlanNotes] = useState('');
+
+  // Pre-populate vitals and labs from patient when quick mode is enabled
+  useEffect(() => {
+    if (isQuickMode) {
+      setVitals(formatVitalsFromPatient(patient));
+      setLabs(formatLabsFromPatient(patient));
+    }
+  }, [isQuickMode, patient]);
 
   const handleGenerate = async () => {
     if (!subjective.trim()) {
@@ -116,15 +159,41 @@ export function ProgressNoteGenerator({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="h-5 w-5" />
-          Generate Progress Note - Day {hospitalDay}
-        </CardTitle>
-        <CardDescription>
-          Enter today's updates to generate a progress note based on the previous {previousNoteType === 'hp' ? 'H&P' : 'progress note'}
-        </CardDescription>
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Generate Progress Note - Day {hospitalDay}
+            </CardTitle>
+            <CardDescription>
+              Enter today's updates to generate a progress note based on the previous {previousNoteType === 'hp' ? 'H&P' : 'progress note'}
+            </CardDescription>
+          </div>
+          <Button
+            variant={isQuickMode ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setIsQuickMode(!isQuickMode)}
+            className="gap-1"
+          >
+            {isQuickMode ? <Zap className="h-4 w-4" /> : <Settings2 className="h-4 w-4" />}
+            {isQuickMode ? 'Quick Mode' : 'Full Mode'}
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Quick Mode Banner */}
+        {isQuickMode && (
+          <div className="bg-primary/10 border border-primary/20 rounded-lg p-3">
+            <p className="text-sm text-primary font-medium flex items-center gap-2">
+              <Zap className="h-4 w-4" />
+              Quick Mode: Vitals and labs pre-populated from patient profile
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Just enter the subjective and click generate. Edit pre-filled data as needed.
+            </p>
+          </div>
+        )}
+
         {/* Previous Note Preview */}
         <div className="border rounded-lg">
           <button

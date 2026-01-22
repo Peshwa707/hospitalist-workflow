@@ -383,6 +383,14 @@ export function updatePatient(id: number, patient: Partial<Patient>): boolean {
 
 export function deletePatient(id: number): boolean {
   const database = getDb();
+
+  // Delete related records first (cascade manually since ALTER TABLE can't add ON DELETE CASCADE)
+  database.prepare('DELETE FROM patient_tasks WHERE patient_id = ?').run(id);
+  database.prepare('DELETE FROM feedback WHERE note_id IN (SELECT id FROM notes WHERE patient_id = ?)').run(id);
+  database.prepare('DELETE FROM analysis_metrics WHERE note_id IN (SELECT id FROM notes WHERE patient_id = ?)').run(id);
+  database.prepare('DELETE FROM notes WHERE patient_id = ?').run(id);
+
+  // Now delete the patient
   const stmt = database.prepare('DELETE FROM patients WHERE id = ?');
   const result = stmt.run(id);
   return result.changes > 0;
@@ -830,4 +838,127 @@ export function getNotesByPatientId(patientId: number): PatientNoteSummary[] {
       createdAt: row.created_at,
     };
   });
+}
+
+// ============ Rounding Dashboard Operations ============
+
+export interface PatientWithTaskCounts extends Patient {
+  pendingTaskCount: number;
+  statTaskCount: number;
+  urgentTaskCount: number;
+  lastNoteDate: string | null;
+  lastNoteType: string | null;
+}
+
+export function getAllPatientsWithTaskCounts(): PatientWithTaskCounts[] {
+  const database = getDb();
+
+  const stmt = database.prepare(`
+    SELECT
+      p.*,
+      COALESCE(t.pending_count, 0) as pending_task_count,
+      COALESCE(t.stat_count, 0) as stat_task_count,
+      COALESCE(t.urgent_count, 0) as urgent_task_count,
+      n.last_note_date,
+      n.last_note_type
+    FROM patients p
+    LEFT JOIN (
+      SELECT
+        patient_id,
+        SUM(CASE WHEN status IN ('pending', 'in_progress') THEN 1 ELSE 0 END) as pending_count,
+        SUM(CASE WHEN status IN ('pending', 'in_progress') AND priority = 'stat' THEN 1 ELSE 0 END) as stat_count,
+        SUM(CASE WHEN status IN ('pending', 'in_progress') AND priority = 'urgent' THEN 1 ELSE 0 END) as urgent_count
+      FROM patient_tasks
+      GROUP BY patient_id
+    ) t ON p.id = t.patient_id
+    LEFT JOIN (
+      SELECT
+        patient_id,
+        MAX(created_at) as last_note_date,
+        (SELECT type FROM notes n2 WHERE n2.patient_id = notes.patient_id ORDER BY created_at DESC LIMIT 1) as last_note_type
+      FROM notes
+      WHERE patient_id IS NOT NULL
+      GROUP BY patient_id
+    ) n ON p.id = n.patient_id
+    ORDER BY
+      COALESCE(t.stat_count, 0) DESC,
+      COALESCE(t.urgent_count, 0) DESC,
+      p.updated_at DESC
+  `);
+
+  const rows = stmt.all() as (DBPatient & {
+    pending_task_count: number;
+    stat_task_count: number;
+    urgent_task_count: number;
+    last_note_date: string | null;
+    last_note_type: string | null;
+  })[];
+
+  return rows.map((row) => ({
+    ...dbPatientToPatient(row),
+    pendingTaskCount: row.pending_task_count,
+    statTaskCount: row.stat_task_count,
+    urgentTaskCount: row.urgent_task_count,
+    lastNoteDate: row.last_note_date,
+    lastNoteType: row.last_note_type,
+  }));
+}
+
+// Get all tasks across all patients with optional filters
+export interface TaskWithPatient extends PatientTask {
+  patientInitials: string;
+  patientRoom: string | null;
+}
+
+export function getAllTasks(filters?: {
+  status?: PatientTask['status'][];
+  priority?: PatientTask['priority'][];
+  category?: PatientTask['category'][];
+}): TaskWithPatient[] {
+  const database = getDb();
+
+  let query = `
+    SELECT
+      t.*,
+      p.initials as patient_initials,
+      p.room_number as patient_room
+    FROM patient_tasks t
+    JOIN patients p ON t.patient_id = p.id
+    WHERE 1=1
+  `;
+  const params: string[] = [];
+
+  if (filters?.status && filters.status.length > 0) {
+    query += ` AND t.status IN (${filters.status.map(() => '?').join(',')})`;
+    params.push(...filters.status);
+  }
+
+  if (filters?.priority && filters.priority.length > 0) {
+    query += ` AND t.priority IN (${filters.priority.map(() => '?').join(',')})`;
+    params.push(...filters.priority);
+  }
+
+  if (filters?.category && filters.category.length > 0) {
+    query += ` AND t.category IN (${filters.category.map(() => '?').join(',')})`;
+    params.push(...filters.category);
+  }
+
+  query += `
+    ORDER BY
+      CASE t.priority WHEN 'stat' THEN 1 WHEN 'urgent' THEN 2 ELSE 3 END,
+      CASE t.status WHEN 'pending' THEN 1 WHEN 'in_progress' THEN 2 ELSE 3 END,
+      t.created_at DESC
+  `;
+
+  const stmt = database.prepare(query);
+  const rows = stmt.all(...params) as (DBPatientTask & {
+    patient_initials: string;
+    patient_room: string | null;
+  })[];
+
+  return rows.map((row) => ({
+    ...dbTaskToTask(row),
+    patientInitials: row.patient_initials,
+    patientRoom: row.patient_room,
+  }));
 }

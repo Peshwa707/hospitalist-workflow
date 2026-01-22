@@ -3,10 +3,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { Stethoscope, Home, History, Users } from 'lucide-react';
+import { Stethoscope, Home, History, Users, Clock, ClipboardList } from 'lucide-react';
 
 const navItems = [
   { href: '/', label: 'Workflow', icon: Home },
+  { href: '/rounding', label: 'Rounding', icon: Clock },
+  { href: '/tasks', label: 'Tasks', icon: ClipboardList },
   { href: '/patients', label: 'Patients', icon: Users },
   { href: '/history', label: 'History', icon: History },
 ];
