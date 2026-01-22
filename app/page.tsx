@@ -19,7 +19,7 @@ export default function Home() {
           <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
           <p className="text-sm text-amber-700 dark:text-amber-300">
             AI-generated content must be reviewed and verified by a physician before use.
-            Use patient initials only—never include MRNs or PHI identifiers.
+            Only MRN is stored—no PHI (names, DOB, addresses) is extracted or retained.
           </p>
         </CardContent>
       </Card>

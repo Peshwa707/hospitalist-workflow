@@ -120,7 +120,7 @@ export function PatientWorkflowPanel({ patient, onPatientUpdated }: PatientWorkf
 
   function buildAdmissionNoteFromPatient(p: Patient): string {
     const parts: string[] = [];
-    parts.push(`Patient: ${p.initials}`);
+    parts.push(`Patient: ${p.mrn}`);
     if (p.admissionDate) parts.push(`Admission Date: ${p.admissionDate}`);
     if (p.primaryDiagnoses.length > 0) parts.push(`Primary Diagnoses: ${p.primaryDiagnoses.join(', ')}`);
     if (p.codeStatus) parts.push(`Code Status: ${p.codeStatus}`);
@@ -237,7 +237,7 @@ export function PatientWorkflowPanel({ patient, onPatientUpdated }: PatientWorkf
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           patientId: patient.id,
-          patientInitials: patient.initials,
+          patientMrn: patient.mrn,
           hospitalDay: calculateHospitalDay(),
           diagnosis: patient.primaryDiagnoses[0] || 'Admission diagnosis',
           subjective: dailyData.subjective,
@@ -275,7 +275,7 @@ export function PatientWorkflowPanel({ patient, onPatientUpdated }: PatientWorkf
           Patient Workflow
         </CardTitle>
         <CardDescription>
-          Generate documentation and manage daily updates for {patient.initials}
+          Generate documentation and manage daily updates for {patient.mrn}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -300,7 +300,7 @@ export function PatientWorkflowPanel({ patient, onPatientUpdated }: PatientWorkf
             <div className="bg-muted/50 rounded-lg p-3 text-sm">
               <div className="flex items-center gap-2 font-medium">
                 <CheckCircle className="h-4 w-4 text-green-600" />
-                Hospital Day {calculateHospitalDay()} - {patient.initials}
+                Hospital Day {calculateHospitalDay()} - {patient.mrn}
               </div>
               <div className="text-muted-foreground mt-1">
                 Primary: {patient.primaryDiagnoses[0] || 'Not specified'}
@@ -492,7 +492,7 @@ export function PatientWorkflowPanel({ patient, onPatientUpdated }: PatientWorkf
           <TabsContent value="hp" className="space-y-4 mt-4">
             <div className="bg-muted/50 rounded-lg p-3 text-sm">
               <p>
-                Generate a comprehensive H&P document using {patient.initials}&apos;s
+                Generate a comprehensive H&P document using {patient.mrn}&apos;s
                 profile data including diagnoses, medications, vitals, and labs.
               </p>
             </div>

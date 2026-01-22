@@ -18,7 +18,7 @@ export function DischargeSummaryForm({ onGenerated }: DischargeSummaryFormProps)
   const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<DischargeSummaryInput>({
-    patientInitials: '',
+    patientMrn: '',
     admissionDate: '',
     dischargeDate: '',
     admittingDiagnosis: '',
@@ -83,11 +83,11 @@ export function DischargeSummaryForm({ onGenerated }: DischargeSummaryFormProps)
           {/* Patient Info Row */}
           <div className="grid grid-cols-3 gap-4">
             <SpeechInput
-              id="patientInitials"
-              name="patientInitials"
+              id="patientMrn"
+              name="patientMrn"
               label="Patient Initials"
               placeholder="JD"
-              value={formData.patientInitials}
+              value={formData.patientMrn}
               onChange={handleChange}
               required
               maxLength={4}

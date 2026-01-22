@@ -29,7 +29,7 @@ export interface LabResult {
 
 export interface Patient {
   id?: number;
-  initials: string;
+  mrn: string;  // Medical Record Number - the only patient identifier stored
   roomNumber?: string;
   admissionDate?: string;
   primaryDiagnoses: string[];
@@ -38,14 +38,14 @@ export interface Patient {
   codeStatus?: string;
   recentVitals?: Vitals;
   recentLabs: LabResult[];
-  notes?: string;
+  notes?: string;  // Clinical notes only - no PHI
   createdAt?: string;
   updatedAt?: string;
 }
 
 export interface DBPatient {
   id: number;
-  initials: string;
+  mrn: string;  // Medical Record Number
   room_number: string | null;
   admission_date: string | null;
   primary_diagnoses: string;  // JSON array
@@ -126,7 +126,7 @@ export interface SpeechStructuredData {
 
 export interface ProgressNoteInput {
   patientId?: number;
-  patientInitials: string;
+  patientMrn: string;
   hospitalDay: number;
   diagnosis: string;
   subjective: string;
@@ -147,7 +147,7 @@ export interface ProgressNoteOutput {
 }
 
 export interface DischargeSummaryInput {
-  patientInitials: string;
+  patientMrn: string;
   admissionDate: string;
   dischargeDate: string;
   admittingDiagnosis: string;
@@ -205,7 +205,7 @@ export interface AdmissionAnalysisOutput {
 export interface NoteHistoryItem {
   id: number;
   type: 'progress' | 'discharge' | 'analysis' | 'hp';
-  patientInitials: string;
+  patientMrn: string;
   summary: string;
   createdAt: string;
 }
@@ -375,7 +375,7 @@ export interface DBNote {
   id: number;
   type: 'progress' | 'discharge' | 'analysis' | 'hp';
   patient_id: number | null;
-  patient_initials: string;
+  patient_mrn: string;
   input_json: string;
   output_json: string;
   created_at: string;
@@ -472,12 +472,12 @@ export interface HpOutput {
   content: string;
   generatedAt: string;
   patientId: number;
-  patientInitials: string;
+  patientMrn: string;
 }
 
 // EMR-to-Patient Profile Types
 export interface ParsedPatientProfile {
-  initials: string | null;
+  mrn: string | null;  // Medical Record Number - only identifier extracted
   roomNumber: string | null;
   admissionDate: string | null;
   primaryDiagnoses: string[];
@@ -489,6 +489,7 @@ export interface ParsedPatientProfile {
   parseNotes: string;
   confidence: 'high' | 'medium' | 'low';
   extractedFrom: 'admission_note' | 'progress_note' | 'hp' | 'discharge' | 'unknown';
+  // PHI fields explicitly NOT extracted: name, DOB, SSN, address, phone, email, insurance
 }
 
 // Patient Task/Checklist Types

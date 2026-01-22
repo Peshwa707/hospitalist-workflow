@@ -20,7 +20,7 @@ export function PatientForm({ patient, onSaved, onCancel }: PatientFormProps) {
   const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
-    initials: patient?.initials || '',
+    mrn: patient?.mrn || '',
     roomNumber: patient?.roomNumber || '',
     admissionDate: patient?.admissionDate || '',
     primaryDiagnoses: patient?.primaryDiagnoses?.join('\n') || '',
@@ -70,7 +70,7 @@ export function PatientForm({ patient, onSaved, onCancel }: PatientFormProps) {
 
     try {
       const patientData: Omit<Patient, 'id' | 'createdAt' | 'updatedAt'> = {
-        initials: formData.initials.toUpperCase(),
+        mrn: formData.mrn.toUpperCase(),
         roomNumber: formData.roomNumber || undefined,
         admissionDate: formData.admissionDate || undefined,
         primaryDiagnoses: formData.primaryDiagnoses
@@ -131,15 +131,15 @@ export function PatientForm({ patient, onSaved, onCancel }: PatientFormProps) {
           {/* Basic Info */}
           <div className="grid grid-cols-4 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="initials">Patient Initials *</Label>
+              <Label htmlFor="mrn">Patient MRN *</Label>
               <Input
-                id="initials"
-                name="initials"
-                placeholder="JD"
-                value={formData.initials}
+                id="mrn"
+                name="mrn"
+                placeholder="12345678"
+                value={formData.mrn}
                 onChange={handleChange}
                 required
-                maxLength={4}
+                maxLength={12}
                 className="uppercase"
               />
             </div>

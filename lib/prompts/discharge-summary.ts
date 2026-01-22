@@ -30,7 +30,7 @@ Always maintain professional medical documentation standards and ensure the summ
 
 export function buildDischargeSummaryUserMessage(input: DischargeSummaryInput): string {
   const sections = [
-    `Patient: ${input.patientInitials}`,
+    `Patient MRN: ${input.patientMrn}`,
     `Admission Date: ${input.admissionDate}`,
     `Discharge Date: ${input.dischargeDate}`,
     '',

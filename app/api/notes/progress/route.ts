@@ -22,9 +22,9 @@ export async function POST(request: Request) {
     const input: ProgressNoteInput = await request.json();
 
     // Validate required fields
-    if (!input.patientInitials || !input.diagnosis || !input.subjective) {
+    if (!input.patientMrn || !input.diagnosis || !input.subjective) {
       return NextResponse.json(
-        { error: 'Missing required fields: patientInitials, diagnosis, subjective' },
+        { error: 'Missing required fields: patientMrn, diagnosis, subjective' },
         { status: 400 }
       );
     }
@@ -52,8 +52,8 @@ export async function POST(request: Request) {
 
     // Save to database (with patient ID if provided)
     const noteId = input.patientId
-      ? saveNoteWithPatient('progress', input.patientInitials, input, output, input.patientId)
-      : saveNote('progress', input.patientInitials, input, output);
+      ? saveNoteWithPatient('progress', input.patientMrn, input, output, input.patientId)
+      : saveNote('progress', input.patientMrn, input, output);
     output.id = noteId;
 
     // Save metrics for learning

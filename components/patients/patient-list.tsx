@@ -119,7 +119,7 @@ export function PatientList({
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by initials, room, or diagnosis..."
+            placeholder="Search by MRN, room, or diagnosis..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
@@ -158,11 +158,11 @@ export function PatientList({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="bg-primary/10 text-primary font-bold rounded-full w-10 h-10 flex items-center justify-center">
-                      {patient.initials}
+                      {patient.mrn}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">{patient.initials}</span>
+                        <span className="font-medium">{patient.mrn}</span>
                         {patient.roomNumber && (
                           <Badge variant="outline">Room {patient.roomNumber}</Badge>
                         )}

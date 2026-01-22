@@ -53,7 +53,7 @@ export function PatientSelector({
 
   const filteredPatients = patients.filter((p) =>
     searchTerm
-      ? p.initials.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      ? p.mrn.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.roomNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.primaryDiagnoses.some((d) =>
           d.toLowerCase().includes(searchTerm.toLowerCase())
@@ -85,10 +85,10 @@ export function PatientSelector({
           {selectedPatient ? (
             <div className="flex items-center gap-2">
               <div className="bg-primary/10 text-primary font-bold rounded-full w-6 h-6 flex items-center justify-center text-xs">
-                {selectedPatient.initials}
+                {selectedPatient.mrn}
               </div>
               <span>
-                {selectedPatient.initials}
+                {selectedPatient.mrn}
                 {selectedPatient.roomNumber && ` - Room ${selectedPatient.roomNumber}`}
               </span>
             </div>
@@ -144,11 +144,11 @@ export function PatientSelector({
                     onClick={() => handleSelect(patient)}
                   >
                     <div className="bg-primary/10 text-primary font-bold rounded-full w-8 h-8 flex items-center justify-center text-xs">
-                      {patient.initials}
+                      {patient.mrn}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">{patient.initials}</span>
+                        <span className="font-medium">{patient.mrn}</span>
                         {patient.roomNumber && (
                           <span className="text-xs text-muted-foreground">
                             Room {patient.roomNumber}

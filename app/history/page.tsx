@@ -122,7 +122,7 @@ export default function HistoryPage() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by patient initials or content..."
+            placeholder="Search by patient MRN or content..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
@@ -172,7 +172,7 @@ export default function HistoryPage() {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
                                 <Badge variant="outline" className="text-xs">
-                                  {note.patientInitials}
+                                  {note.patientMrn}
                                 </Badge>
                                 <Badge variant="secondary" className="text-xs">
                                   {typeLabels[note.type]}

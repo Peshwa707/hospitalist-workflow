@@ -145,17 +145,17 @@ export function PatientProfilePreview({
         <CardContent className="space-y-4">
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="initials">
-                Initials <span className="text-red-500">*</span>
+              <Label htmlFor="mrn">
+                MRN <span className="text-red-500">*</span>
               </Label>
               <Input
-                id="initials"
-                value={profile.initials || ''}
+                id="mrn"
+                value={profile.mrn || ''}
                 onChange={(e) =>
-                  updateProfile({ initials: e.target.value.toUpperCase() })
+                  updateProfile({ mrn: e.target.value.toUpperCase() })
                 }
-                placeholder="AB"
-                maxLength={4}
+                placeholder="12345678"
+                maxLength={12}
                 className="uppercase"
               />
             </div>

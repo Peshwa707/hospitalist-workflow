@@ -137,7 +137,7 @@ export function EmrImportModal({ patient, onImported, onCancel }: EmrImportModal
           <div>
             <CardTitle className="flex items-center gap-2">
               <FileInput className="h-5 w-5" />
-              Import EMR Data for {patient.initials}
+              Import EMR Data for {patient.mrn}
             </CardTitle>
             <CardDescription>
               {step === 'input'

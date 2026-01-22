@@ -44,7 +44,7 @@ A personal web app to reduce documentation burden for hospitalist physicians thr
 
 - All AI-generated content displays prominent "AI Draft - Review before use" warnings
 - Content is visually distinguished with dashed borders and amber badges
-- No PHI storage - use patient initials only, never MRNs
+- No PHI storage - only MRN is stored; no names, DOB, addresses, or other PHI is extracted
 - API key is server-side only, never exposed to client
 - SQLite database is local and excluded from git
 

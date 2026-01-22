@@ -105,7 +105,7 @@ export function ProgressNoteGenerator({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           patientId: patient.id,
-          patientInitials: patient.initials,
+          patientMrn: patient.mrn,
           hospitalDay,
           diagnosis: patient.primaryDiagnoses[0] || 'Admission diagnosis',
           subjective,

@@ -23,7 +23,7 @@ export async function GET(
       id: note.id,
       type: note.type,
       patientId: note.patient_id,
-      patientInitials: note.patient_initials,
+      patientMrn: note.patient_mrn,
       input: JSON.parse(note.input_json),
       output: JSON.parse(note.output_json),
       createdAt: note.created_at,

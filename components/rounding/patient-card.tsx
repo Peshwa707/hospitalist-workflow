@@ -57,7 +57,7 @@ export function PatientCard({ patient, isSelected, onClick }: PatientCardProps) 
         <div className="flex items-start justify-between gap-3">
           {/* Patient Info */}
           <div className="flex items-start gap-3 flex-1 min-w-0">
-            {/* Avatar with initials */}
+            {/* Avatar with MRN */}
             <div
               className={cn(
                 'w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg flex-shrink-0',
@@ -68,13 +68,13 @@ export function PatientCard({ patient, isSelected, onClick }: PatientCardProps) 
                     : 'bg-primary/10 text-primary'
               )}
             >
-              {patient.initials}
+              {patient.mrn}
             </div>
 
             {/* Patient details */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-semibold text-lg">{patient.initials}</span>
+                <span className="font-semibold text-lg">{patient.mrn}</span>
                 {patient.roomNumber && (
                   <Badge variant="outline" className="text-xs">
                     Rm {patient.roomNumber}

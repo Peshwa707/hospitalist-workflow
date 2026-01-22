@@ -58,7 +58,7 @@ export function RoundingDashboard({ onPatientSelect }: RoundingDashboardProps) {
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
     return (
-      p.initials.toLowerCase().includes(search) ||
+      p.mrn.toLowerCase().includes(search) ||
       p.roomNumber?.toLowerCase().includes(search) ||
       p.primaryDiagnoses.some((d) => d.toLowerCase().includes(search))
     );
@@ -204,7 +204,7 @@ export function RoundingDashboard({ onPatientSelect }: RoundingDashboardProps) {
                   Patient {currentPatientIndex + 1} of {filteredPatients.length}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {filteredPatients[currentPatientIndex]?.initials} - Room {filteredPatients[currentPatientIndex]?.roomNumber || 'N/A'}
+                  {filteredPatients[currentPatientIndex]?.mrn} - Room {filteredPatients[currentPatientIndex]?.roomNumber || 'N/A'}
                 </p>
               </div>
               <Button
@@ -225,7 +225,7 @@ export function RoundingDashboard({ onPatientSelect }: RoundingDashboardProps) {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by initials, room, or diagnosis..."
+            placeholder="Search by MRN, room, or diagnosis..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"

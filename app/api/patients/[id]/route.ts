@@ -49,9 +49,9 @@ export async function PUT(request: Request, context: RouteContext) {
 
     const updates: Partial<Patient> = await request.json();
 
-    // Normalize initials if provided
-    if (updates.initials) {
-      updates.initials = updates.initials.toUpperCase();
+    // Normalize MRN if provided
+    if (updates.mrn) {
+      updates.mrn = updates.mrn.toUpperCase();
     }
 
     const success = updatePatient(patientId, updates);
@@ -70,7 +70,7 @@ export async function PUT(request: Request, context: RouteContext) {
 
     if (error instanceof Error && error.message.includes('UNIQUE constraint')) {
       return NextResponse.json(
-        { error: 'A patient with these initials already exists' },
+        { error: 'A patient with this MRN already exists' },
         { status: 409 }
       );
     }

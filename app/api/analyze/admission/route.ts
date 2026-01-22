@@ -75,14 +75,11 @@ export async function POST(request: Request) {
       generatedAt: new Date().toISOString(),
     };
 
-    // Extract patient initials from the note (first two capital letters or use placeholder)
-    const initialsMatch = input.admissionNote.match(/\b([A-Z])\w*\s+([A-Z])/);
-    const patientInitials = initialsMatch
-      ? `${initialsMatch[1]}${initialsMatch[2]}`
-      : 'XX';
+    // Use placeholder MRN for standalone analysis (no PHI extraction)
+    const patientMrn = 'ANALYSIS';
 
     // Save to database
-    const noteId = saveNote('analysis', patientInitials, input, output);
+    const noteId = saveNote('analysis', patientMrn, input, output);
     output.id = noteId;
 
     // Save metrics for learning

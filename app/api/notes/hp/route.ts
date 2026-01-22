@@ -61,11 +61,11 @@ export async function POST(request: Request) {
       content,
       generatedAt: new Date().toISOString(),
       patientId: input.patientId,
-      patientInitials: patient.initials,
+      patientMrn: patient.mrn,
     };
 
     // Save to database
-    const noteId = saveNoteWithPatient('hp', patient.initials, input, output, input.patientId);
+    const noteId = saveNoteWithPatient('hp', patient.mrn, input, output, input.patientId);
     output.id = noteId;
 
     // Save metrics for learning

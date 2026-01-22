@@ -72,7 +72,7 @@ export function buildHpGeneratorUserMessage(input: HpGeneratorInput): string {
 
   const sections: string[] = [
     'PATIENT INFORMATION:',
-    `Initials: ${patient.initials}`,
+    `MRN: ${patient.mrn}`,
   ];
 
   if (patient.roomNumber) {

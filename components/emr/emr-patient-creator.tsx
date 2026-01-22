@@ -88,8 +88,8 @@ export function EmrPatientCreator({
     if (!parsedProfile) return;
 
     // Validate required fields
-    if (!parsedProfile.initials?.trim()) {
-      setError('Patient initials are required');
+    if (!parsedProfile.mrn?.trim()) {
+      setError('Patient MRN is required');
       return;
     }
 
@@ -99,7 +99,7 @@ export function EmrPatientCreator({
     try {
       // Build the patient object
       const patientData = {
-        initials: parsedProfile.initials.trim().toUpperCase(),
+        mrn: parsedProfile.mrn.trim().toUpperCase(),
         roomNumber: parsedProfile.roomNumber || undefined,
         admissionDate: parsedProfile.admissionDate || undefined,
         primaryDiagnoses: parsedProfile.primaryDiagnoses,
@@ -144,7 +144,7 @@ export function EmrPatientCreator({
             <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-green-800">Patient Created!</h3>
             <p className="text-green-700 mt-2">
-              {createdPatient.initials} has been added to your patient list.
+              {createdPatient.mrn} has been added to your patient list.
             </p>
           </div>
 
@@ -238,7 +238,7 @@ Supported formats:
 • Discharge Summaries
 
 The system will automatically extract:
-• Patient identifiers (initials, room, admission date)
+• Patient identifiers (MRN, room, admission date)
 • Diagnoses and allergies
 • Code status
 • Vitals, labs, and medications`}
@@ -306,7 +306,7 @@ The system will automatically extract:
               </Button>
               <Button
                 onClick={handleSavePatient}
-                disabled={isSaving || !parsedProfile.initials?.trim()}
+                disabled={isSaving || !parsedProfile.mrn?.trim()}
                 className="flex-1"
               >
                 {isSaving ? (
@@ -323,9 +323,9 @@ The system will automatically extract:
               </Button>
             </div>
 
-            {!parsedProfile.initials?.trim() && (
+            {!parsedProfile.mrn?.trim() && (
               <p className="text-sm text-orange-600 text-center">
-                Patient initials are required before saving
+                Patient MRN is required before saving
               </p>
             )}
           </>

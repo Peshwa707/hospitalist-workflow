@@ -22,7 +22,7 @@ export function ProgressNoteForm({ onGenerated }: ProgressNoteFormProps) {
   const [showDictation, setShowDictation] = useState(false);
 
   const [formData, setFormData] = useState<ProgressNoteInput>({
-    patientInitials: '',
+    patientMrn: '',
     hospitalDay: 1,
     diagnosis: '',
     subjective: '',
@@ -72,7 +72,7 @@ export function ProgressNoteForm({ onGenerated }: ProgressNoteFormProps) {
       setFormData((prev) => ({
         ...prev,
         patientId: selectedPatient.id,
-        patientInitials: selectedPatient.initials,
+        patientMrn: selectedPatient.mrn,
         hospitalDay,
         diagnosis: selectedPatient.primaryDiagnoses[0] || prev.diagnosis,
         vitals: vitals || prev.vitals,
@@ -88,7 +88,7 @@ export function ProgressNoteForm({ onGenerated }: ProgressNoteFormProps) {
       setFormData((prev) => ({
         ...prev,
         patientId: undefined,
-        patientInitials: '',
+        patientMrn: '',
         hospitalDay: 1,
       }));
     }
@@ -189,11 +189,11 @@ export function ProgressNoteForm({ onGenerated }: ProgressNoteFormProps) {
           {/* Patient Info Row */}
           <div className="grid grid-cols-3 gap-4">
             <SpeechInput
-              id="patientInitials"
-              name="patientInitials"
+              id="patientMrn"
+              name="patientMrn"
               label="Patient Initials"
               placeholder="JD"
-              value={formData.patientInitials}
+              value={formData.patientMrn}
               onChange={handleChange}
               required
               maxLength={4}

@@ -115,11 +115,11 @@ export default function PatientsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-4">
-              <div className="bg-primary text-primary-foreground font-bold rounded-full w-16 h-16 flex items-center justify-center text-2xl">
-                {selectedPatient.initials}
+              <div className="bg-primary text-primary-foreground font-bold rounded-full w-16 h-16 flex items-center justify-center text-lg">
+                {selectedPatient.mrn}
               </div>
               <div>
-                <CardTitle className="text-2xl">{selectedPatient.initials}</CardTitle>
+                <CardTitle className="text-2xl">{selectedPatient.mrn}</CardTitle>
                 <div className="flex gap-2 mt-2">
                   {selectedPatient.roomNumber && (
                     <Badge>Room {selectedPatient.roomNumber}</Badge>

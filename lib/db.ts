@@ -25,11 +25,12 @@ function initializeSchema() {
   const database = db!;
 
   // Create tables first (without patient_id in notes - will add via migration)
+  // Note: Using 'mrn' (Medical Record Number) as the patient identifier - no PHI stored
   database.exec(`
     CREATE TABLE IF NOT EXISTS notes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       type TEXT NOT NULL CHECK(type IN ('progress', 'discharge', 'analysis', 'hp')),
-      patient_initials TEXT NOT NULL,
+      patient_mrn TEXT NOT NULL,
       input_json TEXT NOT NULL,
       output_json TEXT NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))
@@ -37,7 +38,7 @@ function initializeSchema() {
 
     CREATE TABLE IF NOT EXISTS patients (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      initials TEXT NOT NULL UNIQUE,
+      mrn TEXT NOT NULL UNIQUE,
       room_number TEXT,
       admission_date TEXT,
       primary_diagnoses TEXT DEFAULT '[]',
@@ -52,6 +53,18 @@ function initializeSchema() {
     );
   `);
 
+  // Migration: Rename initials to mrn if old schema exists
+  try {
+    database.exec('ALTER TABLE patients RENAME COLUMN initials TO mrn');
+  } catch {
+    // Column already named mrn or doesn't exist
+  }
+  try {
+    database.exec('ALTER TABLE notes RENAME COLUMN patient_mrn TO patient_mrn');
+  } catch {
+    // Column already named patient_mrn or doesn't exist
+  }
+
   // Add patient_id column to existing notes table if it doesn't exist
   try {
     database.exec('ALTER TABLE notes ADD COLUMN patient_id INTEGER REFERENCES patients(id)');
@@ -63,9 +76,9 @@ function initializeSchema() {
   database.exec(`
     CREATE INDEX IF NOT EXISTS idx_notes_type ON notes(type);
     CREATE INDEX IF NOT EXISTS idx_notes_created_at ON notes(created_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_notes_patient ON notes(patient_initials);
+    CREATE INDEX IF NOT EXISTS idx_notes_patient_mrn ON notes(patient_mrn);
     CREATE INDEX IF NOT EXISTS idx_notes_patient_id ON notes(patient_id);
-    CREATE INDEX IF NOT EXISTS idx_patients_initials ON patients(initials);
+    CREATE INDEX IF NOT EXISTS idx_patients_mrn ON patients(mrn);
   `);
 
   // ML Integration: Feedback and Analysis Metrics tables
@@ -129,19 +142,19 @@ function initializeSchema() {
 
 export function saveNote(
   type: 'progress' | 'discharge' | 'analysis',
-  patientInitials: string,
+  patientMrn: string,
   input: object,
   output: object
 ): number {
   const database = getDb();
   const stmt = database.prepare(`
-    INSERT INTO notes (type, patient_initials, input_json, output_json)
+    INSERT INTO notes (type, patient_mrn, input_json, output_json)
     VALUES (?, ?, ?, ?)
   `);
 
   const result = stmt.run(
     type,
-    patientInitials,
+    patientMrn,
     JSON.stringify(input),
     JSON.stringify(output)
   );
@@ -162,7 +175,7 @@ export function getNoteHistory(
 ): NoteHistoryItem[] {
   const database = getDb();
 
-  let query = 'SELECT id, type, patient_initials, output_json, created_at FROM notes';
+  let query = 'SELECT id, type, patient_mrn, output_json, created_at FROM notes';
   const params: (string | number)[] = [];
 
   if (type) {
@@ -192,7 +205,7 @@ export function getNoteHistory(
     return {
       id: row.id,
       type: row.type,
-      patientInitials: row.patient_initials,
+      patientMrn: row.patient_mrn,
       summary,
       createdAt: row.created_at,
     };
@@ -206,9 +219,9 @@ export function searchNotes(
   const database = getDb();
 
   const stmt = database.prepare(`
-    SELECT id, type, patient_initials, output_json, created_at
+    SELECT id, type, patient_mrn, output_json, created_at
     FROM notes
-    WHERE patient_initials LIKE ? OR output_json LIKE ?
+    WHERE patient_mrn LIKE ? OR output_json LIKE ?
     ORDER BY created_at DESC
     LIMIT ?
   `);
@@ -230,7 +243,7 @@ export function searchNotes(
     return {
       id: row.id,
       type: row.type,
-      patientInitials: row.patient_initials,
+      patientMrn: row.patient_mrn,
       summary,
       createdAt: row.created_at,
     };
@@ -264,7 +277,7 @@ export function updateNoteContent(id: number, content: string): boolean {
 function dbPatientToPatient(row: DBPatient): Patient {
   return {
     id: row.id,
-    initials: row.initials,
+    mrn: row.mrn,
     roomNumber: row.room_number || undefined,
     admissionDate: row.admission_date || undefined,
     primaryDiagnoses: JSON.parse(row.primary_diagnoses || '[]'),
@@ -282,13 +295,13 @@ function dbPatientToPatient(row: DBPatient): Patient {
 export function createPatient(patient: Omit<Patient, 'id' | 'createdAt' | 'updatedAt'>): number {
   const database = getDb();
   const stmt = database.prepare(`
-    INSERT INTO patients (initials, room_number, admission_date, primary_diagnoses,
+    INSERT INTO patients (mrn, room_number, admission_date, primary_diagnoses,
       active_medications, allergies, code_status, recent_vitals, recent_labs, notes)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const result = stmt.run(
-    patient.initials,
+    patient.mrn,
     patient.roomNumber || null,
     patient.admissionDate || null,
     JSON.stringify(patient.primaryDiagnoses || []),
@@ -310,10 +323,10 @@ export function getPatientById(id: number): Patient | null {
   return row ? dbPatientToPatient(row) : null;
 }
 
-export function getPatientByInitials(initials: string): Patient | null {
+export function getPatientByMrn(mrn: string): Patient | null {
   const database = getDb();
-  const stmt = database.prepare('SELECT * FROM patients WHERE initials = ?');
-  const row = stmt.get(initials) as DBPatient | undefined;
+  const stmt = database.prepare('SELECT * FROM patients WHERE mrn = ?');
+  const row = stmt.get(mrn) as DBPatient | undefined;
   return row ? dbPatientToPatient(row) : null;
 }
 
@@ -330,9 +343,9 @@ export function updatePatient(id: number, patient: Partial<Patient>): boolean {
   const updates: string[] = [];
   const values: (string | number | null)[] = [];
 
-  if (patient.initials !== undefined) {
-    updates.push('initials = ?');
-    values.push(patient.initials);
+  if (patient.mrn !== undefined) {
+    updates.push('mrn = ?');
+    values.push(patient.mrn);
   }
   if (patient.roomNumber !== undefined) {
     updates.push('room_number = ?');
@@ -400,7 +413,7 @@ export function searchPatients(searchTerm: string): Patient[] {
   const database = getDb();
   const stmt = database.prepare(`
     SELECT * FROM patients
-    WHERE initials LIKE ? OR room_number LIKE ? OR primary_diagnoses LIKE ?
+    WHERE mrn LIKE ? OR room_number LIKE ? OR primary_diagnoses LIKE ?
     ORDER BY updated_at DESC
   `);
   const pattern = `%${searchTerm}%`;
@@ -411,21 +424,21 @@ export function searchPatients(searchTerm: string): Patient[] {
 // Update saveNote to optionally include patient_id
 export function saveNoteWithPatient(
   type: 'progress' | 'discharge' | 'analysis' | 'hp',
-  patientInitials: string,
+  patientMrn: string,
   input: object,
   output: object,
   patientId?: number
 ): number {
   const database = getDb();
   const stmt = database.prepare(`
-    INSERT INTO notes (type, patient_id, patient_initials, input_json, output_json)
+    INSERT INTO notes (type, patient_id, patient_mrn, input_json, output_json)
     VALUES (?, ?, ?, ?, ?)
   `);
 
   const result = stmt.run(
     type,
     patientId || null,
-    patientInitials,
+    patientMrn,
     JSON.stringify(input),
     JSON.stringify(output)
   );
@@ -906,7 +919,7 @@ export function getAllPatientsWithTaskCounts(): PatientWithTaskCounts[] {
 
 // Get all tasks across all patients with optional filters
 export interface TaskWithPatient extends PatientTask {
-  patientInitials: string;
+  patientMrn: string;
   patientRoom: string | null;
 }
 
@@ -920,7 +933,7 @@ export function getAllTasks(filters?: {
   let query = `
     SELECT
       t.*,
-      p.initials as patient_initials,
+      p.mrn as patient_mrn,
       p.room_number as patient_room
     FROM patient_tasks t
     JOIN patients p ON t.patient_id = p.id
@@ -952,13 +965,13 @@ export function getAllTasks(filters?: {
 
   const stmt = database.prepare(query);
   const rows = stmt.all(...params) as (DBPatientTask & {
-    patient_initials: string;
+    patient_mrn: string;
     patient_room: string | null;
   })[];
 
   return rows.map((row) => ({
     ...dbTaskToTask(row),
-    patientInitials: row.patient_initials,
+    patientMrn: row.patient_mrn,
     patientRoom: row.patient_room,
   }));
 }

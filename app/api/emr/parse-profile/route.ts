@@ -56,7 +56,7 @@ export async function POST(request: Request) {
 
       // Normalize the parsed data
       parsed = {
-        initials: rawParsed.initials ? String(rawParsed.initials).toUpperCase() : null,
+        mrn: rawParsed.mrn ? String(rawParsed.mrn).toUpperCase() : null,
         roomNumber: rawParsed.roomNumber ? String(rawParsed.roomNumber) : null,
         admissionDate: normalizeDate(rawParsed.admissionDate),
         primaryDiagnoses: normalizeDiagnoses(rawParsed.primaryDiagnoses),

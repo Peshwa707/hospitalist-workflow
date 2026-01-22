@@ -24,15 +24,15 @@ export async function POST(request: Request) {
     const patient: Omit<Patient, 'id' | 'createdAt' | 'updatedAt'> = await request.json();
 
     // Validate required fields
-    if (!patient.initials) {
+    if (!patient.mrn) {
       return NextResponse.json(
-        { error: 'Patient initials are required' },
+        { error: 'Patient MRN is required' },
         { status: 400 }
       );
     }
 
-    // Normalize initials to uppercase
-    patient.initials = patient.initials.toUpperCase();
+    // Normalize MRN to uppercase
+    patient.mrn = patient.mrn.toUpperCase();
 
     const patientId = createPatient(patient);
 
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     // Check for unique constraint violation
     if (error instanceof Error && error.message.includes('UNIQUE constraint')) {
       return NextResponse.json(
-        { error: 'A patient with these initials already exists' },
+        { error: 'A patient with this MRN already exists' },
         { status: 409 }
       );
     }

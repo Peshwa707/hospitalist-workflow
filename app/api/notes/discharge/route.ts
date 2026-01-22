@@ -23,7 +23,7 @@ export async function POST(request: Request) {
 
     // Validate required fields
     if (
-      !input.patientInitials ||
+      !input.patientMrn ||
       !input.admissionDate ||
       !input.dischargeDate ||
       !input.admittingDiagnosis ||
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            'Missing required fields: patientInitials, admissionDate, dischargeDate, admittingDiagnosis, dischargeDiagnosis, hospitalCourse',
+            'Missing required fields: patientMrn, admissionDate, dischargeDate, admittingDiagnosis, dischargeDiagnosis, hospitalCourse',
         },
         { status: 400 }
       );
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     };
 
     // Save to database
-    const noteId = saveNote('discharge', input.patientInitials, input, output);
+    const noteId = saveNote('discharge', input.patientMrn, input, output);
     output.id = noteId;
 
     // Save metrics for learning

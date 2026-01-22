@@ -136,16 +136,13 @@ export async function POST(request: Request) {
       generatedAt: new Date().toISOString(),
     };
 
-    // Extract patient initials from the note
-    const initialsMatch = input.admissionNote.match(/\b([A-Z])\w*\s+([A-Z])/);
-    const patientInitials = initialsMatch
-      ? `${initialsMatch[1]}${initialsMatch[2]}`
-      : 'XX';
+    // Use placeholder MRN for standalone analysis (no PHI extraction)
+    const patientMrn = 'ANALYSIS';
 
     // Save to database (with patient association if provided)
     const noteId = input.patientId
-      ? saveNoteWithPatient('analysis', patientInitials, input, output, input.patientId)
-      : saveNote('analysis', patientInitials, input, output);
+      ? saveNoteWithPatient('analysis', patientMrn, input, output, input.patientId)
+      : saveNote('analysis', patientMrn, input, output);
     output.admission.id = noteId;
 
     // Auto-create tasks from analysis if patient ID is provided

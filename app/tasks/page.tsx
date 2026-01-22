@@ -114,24 +114,24 @@ export default function TasksPage() {
     const search = searchTerm.toLowerCase();
     return (
       task.task.toLowerCase().includes(search) ||
-      task.patientInitials.toLowerCase().includes(search) ||
+      task.patientMrn.toLowerCase().includes(search) ||
       task.patientRoom?.toLowerCase().includes(search)
     );
   });
 
   // Group tasks by patient
   const groupedByPatient = filteredTasks.reduce((acc, task) => {
-    const key = task.patientInitials;
+    const key = task.patientMrn;
     if (!acc[key]) {
       acc[key] = {
-        patientInitials: task.patientInitials,
+        patientMrn: task.patientMrn,
         patientRoom: task.patientRoom,
         tasks: [],
       };
     }
     acc[key].tasks.push(task);
     return acc;
-  }, {} as Record<string, { patientInitials: string; patientRoom: string | null; tasks: TaskWithPatient[] }>);
+  }, {} as Record<string, { patientMrn: string; patientRoom: string | null; tasks: TaskWithPatient[] }>);
 
   const stats = {
     total: tasks.length,
@@ -256,13 +256,13 @@ export default function TasksPage() {
       ) : (
         <div className="space-y-4">
           {Object.values(groupedByPatient).map((group) => (
-            <Card key={group.patientInitials}>
+            <Card key={group.patientMrn}>
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-2">
                   <div className="bg-primary/10 text-primary font-bold rounded-full w-8 h-8 flex items-center justify-center text-sm">
-                    {group.patientInitials}
+                    {group.patientMrn}
                   </div>
-                  <span className="font-medium">{group.patientInitials}</span>
+                  <span className="font-medium">{group.patientMrn}</span>
                   {group.patientRoom && (
                     <Badge variant="outline" className="text-xs">
                       Room {group.patientRoom}

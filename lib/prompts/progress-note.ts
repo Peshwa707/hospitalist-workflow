@@ -25,7 +25,7 @@ Always maintain professional medical documentation standards.`;
 
 export function buildProgressNoteUserMessage(input: ProgressNoteInput): string {
   const sections = [
-    `Patient: ${input.patientInitials}`,
+    `Patient MRN: ${input.patientMrn}`,
     `Hospital Day: ${input.hospitalDay}`,
     `Primary Diagnosis: ${input.diagnosis}`,
   ];

@@ -77,7 +77,7 @@ export function ClinicalWorkflow() {
 
       // Step 2: Create patient
       const patientData = {
-        initials: profile.initials?.trim().toUpperCase() || 'XX',
+        mrn: profile.mrn?.trim().toUpperCase() || 'UNKNOWN',
         roomNumber: profile.roomNumber || undefined,
         admissionDate: profile.admissionDate || undefined,
         primaryDiagnoses: profile.primaryDiagnoses,
@@ -279,7 +279,7 @@ export function ClinicalWorkflow() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-3">
-                    <h2 className="text-2xl font-bold">{patient.initials}</h2>
+                    <h2 className="text-2xl font-bold">{patient.mrn}</h2>
                     {patient.roomNumber && (
                       <Badge variant="outline">Room {patient.roomNumber}</Badge>
                     )}
