@@ -3,7 +3,8 @@ import path from 'path';
 import type {
   DBNote, NoteHistoryItem, Patient, DBPatient,
   Feedback, DBFeedback, AnalysisMetrics, DBAnalysisMetrics,
-  PatientTask, DBPatientTask, PatientNoteSummary
+  PatientTask, DBPatientTask, PatientNoteSummary,
+  NoteEmbedding, DBNoteEmbedding, EmbeddingStats
 } from './types';
 
 // Database file stored in project root
@@ -60,7 +61,7 @@ function initializeSchema() {
     // Column already named mrn or doesn't exist
   }
   try {
-    database.exec('ALTER TABLE notes RENAME COLUMN patient_mrn TO patient_mrn');
+    database.exec('ALTER TABLE notes RENAME COLUMN patient_initials TO patient_mrn');
   } catch {
     // Column already named patient_mrn or doesn't exist
   }
@@ -137,6 +138,20 @@ function initializeSchema() {
     CREATE INDEX IF NOT EXISTS idx_tasks_patient ON patient_tasks(patient_id);
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON patient_tasks(status);
     CREATE INDEX IF NOT EXISTS idx_tasks_priority ON patient_tasks(priority);
+
+    -- Vector embeddings for semantic search
+    CREATE TABLE IF NOT EXISTS note_embeddings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      note_id INTEGER NOT NULL UNIQUE REFERENCES notes(id) ON DELETE CASCADE,
+      embedding_model TEXT NOT NULL,
+      embedding_vector BLOB NOT NULL,
+      embedding_dimensions INTEGER NOT NULL,
+      content_hash TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_embeddings_note_id ON note_embeddings(note_id);
+    CREATE INDEX IF NOT EXISTS idx_embeddings_model ON note_embeddings(embedding_model);
   `);
 }
 
@@ -973,5 +988,149 @@ export function getAllTasks(filters?: {
     ...dbTaskToTask(row),
     patientMrn: row.patient_mrn,
     patientRoom: row.patient_room,
+  }));
+}
+
+// ============ Embedding CRUD Operations ============
+
+function dbEmbeddingToEmbedding(row: DBNoteEmbedding, vector: number[]): NoteEmbedding {
+  return {
+    id: row.id,
+    noteId: row.note_id,
+    embeddingModel: row.embedding_model,
+    embeddingVector: vector,
+    embeddingDimensions: row.embedding_dimensions,
+    contentHash: row.content_hash || '',
+    createdAt: row.created_at,
+  };
+}
+
+export function saveEmbedding(
+  noteId: number,
+  model: string,
+  vector: Buffer,
+  dimensions: number,
+  contentHash: string
+): number {
+  const database = getDb();
+
+  // Use INSERT OR REPLACE to update if embedding already exists
+  const stmt = database.prepare(`
+    INSERT OR REPLACE INTO note_embeddings (note_id, embedding_model, embedding_vector, embedding_dimensions, content_hash)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+
+  const result = stmt.run(noteId, model, vector, dimensions, contentHash);
+  return result.lastInsertRowid as number;
+}
+
+export function getEmbedding(noteId: number): DBNoteEmbedding | null {
+  const database = getDb();
+  const stmt = database.prepare('SELECT * FROM note_embeddings WHERE note_id = ?');
+  return stmt.get(noteId) as DBNoteEmbedding | null;
+}
+
+export function getAllEmbeddings(): DBNoteEmbedding[] {
+  const database = getDb();
+  const stmt = database.prepare('SELECT * FROM note_embeddings');
+  return stmt.all() as DBNoteEmbedding[];
+}
+
+export function getNotesWithoutEmbeddings(): DBNote[] {
+  const database = getDb();
+  const stmt = database.prepare(`
+    SELECT n.* FROM notes n
+    LEFT JOIN note_embeddings e ON n.id = e.note_id
+    WHERE e.id IS NULL
+  `);
+  return stmt.all() as DBNote[];
+}
+
+export function getNotesNeedingReembedding(model: string): DBNote[] {
+  const database = getDb();
+  // Get notes where embedding model differs from current model
+  const stmt = database.prepare(`
+    SELECT n.* FROM notes n
+    JOIN note_embeddings e ON n.id = e.note_id
+    WHERE e.embedding_model != ?
+  `);
+  return stmt.all(model) as DBNote[];
+}
+
+export function deleteEmbedding(noteId: number): boolean {
+  const database = getDb();
+  const stmt = database.prepare('DELETE FROM note_embeddings WHERE note_id = ?');
+  const result = stmt.run(noteId);
+  return result.changes > 0;
+}
+
+export function getEmbeddingStats(): EmbeddingStats {
+  const database = getDb();
+
+  const totalNotesStmt = database.prepare('SELECT COUNT(*) as count FROM notes');
+  const totalNotes = (totalNotesStmt.get() as { count: number }).count;
+
+  const embeddedNotesStmt = database.prepare('SELECT COUNT(*) as count FROM note_embeddings');
+  const notesWithEmbeddings = (embeddedNotesStmt.get() as { count: number }).count;
+
+  const modelBreakdownStmt = database.prepare(`
+    SELECT embedding_model as model, COUNT(*) as count
+    FROM note_embeddings
+    GROUP BY embedding_model
+  `);
+  const modelRows = modelBreakdownStmt.all() as { model: string; count: number }[];
+  const modelBreakdown: Record<string, number> = {};
+  for (const row of modelRows) {
+    modelBreakdown[row.model] = row.count;
+  }
+
+  return {
+    totalNotes,
+    notesWithEmbeddings,
+    coveragePercent: totalNotes > 0 ? (notesWithEmbeddings / totalNotes) * 100 : 0,
+    modelBreakdown,
+  };
+}
+
+export function getAllNotesWithEmbeddings(): { note: DBNote; embedding: DBNoteEmbedding }[] {
+  const database = getDb();
+  const stmt = database.prepare(`
+    SELECT
+      n.id, n.type, n.patient_id, n.patient_mrn, n.input_json, n.output_json, n.created_at,
+      e.id as e_id, e.note_id as e_note_id, e.embedding_model, e.embedding_vector,
+      e.embedding_dimensions, e.content_hash, e.created_at as e_created_at
+    FROM notes n
+    JOIN note_embeddings e ON n.id = e.note_id
+  `);
+
+  const rows = stmt.all() as (DBNote & {
+    e_id: number;
+    e_note_id: number;
+    embedding_model: string;
+    embedding_vector: Buffer;
+    embedding_dimensions: number;
+    content_hash: string | null;
+    e_created_at: string;
+  })[];
+
+  return rows.map((row) => ({
+    note: {
+      id: row.id,
+      type: row.type,
+      patient_id: row.patient_id,
+      patient_mrn: row.patient_mrn,
+      input_json: row.input_json,
+      output_json: row.output_json,
+      created_at: row.created_at,
+    },
+    embedding: {
+      id: row.e_id,
+      note_id: row.e_note_id,
+      embedding_model: row.embedding_model,
+      embedding_vector: row.embedding_vector,
+      embedding_dimensions: row.embedding_dimensions,
+      content_hash: row.content_hash,
+      created_at: row.e_created_at,
+    },
   }));
 }

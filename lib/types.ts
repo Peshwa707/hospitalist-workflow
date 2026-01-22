@@ -530,3 +530,36 @@ export interface PatientNoteSummary {
   summary: string;
   createdAt: string;
 }
+
+// Embeddings Types for Semantic Search
+export interface NoteEmbedding {
+  id: number;
+  noteId: number;
+  embeddingModel: string;
+  embeddingVector: number[];
+  embeddingDimensions: number;
+  contentHash: string;
+  createdAt: string;
+}
+
+export interface DBNoteEmbedding {
+  id: number;
+  note_id: number;
+  embedding_model: string;
+  embedding_vector: Buffer;
+  embedding_dimensions: number;
+  content_hash: string | null;
+  created_at: string;
+}
+
+export interface SimilarNote {
+  note: DBNote;
+  similarity: number;
+}
+
+export interface EmbeddingStats {
+  totalNotes: number;
+  notesWithEmbeddings: number;
+  coveragePercent: number;
+  modelBreakdown: Record<string, number>;
+}
