@@ -2,7 +2,8 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import type {
   DBNote, NoteHistoryItem, Patient, DBPatient,
-  Feedback, DBFeedback, AnalysisMetrics, DBAnalysisMetrics
+  Feedback, DBFeedback, AnalysisMetrics, DBAnalysisMetrics,
+  PatientTask, DBPatientTask, PatientNoteSummary
 } from './types';
 
 // Database file stored in project root
@@ -27,7 +28,7 @@ function initializeSchema() {
   database.exec(`
     CREATE TABLE IF NOT EXISTS notes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      type TEXT NOT NULL CHECK(type IN ('progress', 'discharge', 'analysis')),
+      type TEXT NOT NULL CHECK(type IN ('progress', 'discharge', 'analysis', 'hp')),
       patient_initials TEXT NOT NULL,
       input_json TEXT NOT NULL,
       output_json TEXT NOT NULL,
@@ -103,6 +104,26 @@ function initializeSchema() {
     CREATE INDEX IF NOT EXISTS idx_metrics_note ON analysis_metrics(note_id);
     CREATE INDEX IF NOT EXISTS idx_metrics_model ON analysis_metrics(model_used);
     CREATE INDEX IF NOT EXISTS idx_metrics_type ON analysis_metrics(analysis_type);
+
+    -- Patient tasks/checklist
+    CREATE TABLE IF NOT EXISTS patient_tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+      task TEXT NOT NULL,
+      category TEXT NOT NULL CHECK(category IN ('workup', 'consult', 'medication', 'discharge', 'follow_up', 'other')),
+      priority TEXT NOT NULL CHECK(priority IN ('stat', 'urgent', 'routine')),
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'in_progress', 'completed', 'cancelled')),
+      source TEXT NOT NULL CHECK(source IN ('ai_analysis', 'manual')),
+      notes TEXT,
+      due_date TEXT,
+      completed_at TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_tasks_patient ON patient_tasks(patient_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_status ON patient_tasks(status);
+    CREATE INDEX IF NOT EXISTS idx_tasks_priority ON patient_tasks(priority);
   `);
 }
 
@@ -220,6 +241,21 @@ export function deleteNote(id: number): boolean {
   const database = getDb();
   const stmt = database.prepare('DELETE FROM notes WHERE id = ?');
   const result = stmt.run(id);
+  return result.changes > 0;
+}
+
+export function updateNoteContent(id: number, content: string): boolean {
+  const database = getDb();
+  const note = getNoteById(id);
+  if (!note) return false;
+
+  // Parse existing output and update content field
+  const output = JSON.parse(note.output_json);
+  output.content = content;
+  output.editedAt = new Date().toISOString();
+
+  const stmt = database.prepare('UPDATE notes SET output_json = ? WHERE id = ?');
+  const result = stmt.run(JSON.stringify(output), id);
   return result.changes > 0;
 }
 
@@ -643,4 +679,155 @@ export function getFeedbackAggregates(): {
     byType,
     recentTrend,
   };
+}
+
+// ============ Patient Tasks CRUD Operations ============
+
+function dbTaskToTask(row: DBPatientTask): PatientTask {
+  return {
+    id: row.id,
+    patientId: row.patient_id,
+    task: row.task,
+    category: row.category as PatientTask['category'],
+    priority: row.priority as PatientTask['priority'],
+    status: row.status as PatientTask['status'],
+    source: row.source as PatientTask['source'],
+    notes: row.notes ?? undefined,
+    dueDate: row.due_date ?? undefined,
+    completedAt: row.completed_at ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function createTask(task: Omit<PatientTask, 'id' | 'createdAt' | 'updatedAt'>): number {
+  const database = getDb();
+  const stmt = database.prepare(`
+    INSERT INTO patient_tasks (patient_id, task, category, priority, status, source, notes, due_date)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const result = stmt.run(
+    task.patientId,
+    task.task,
+    task.category,
+    task.priority,
+    task.status,
+    task.source,
+    task.notes ?? null,
+    task.dueDate ?? null
+  );
+
+  return result.lastInsertRowid as number;
+}
+
+export function createTasksFromAnalysis(
+  patientId: number,
+  workup: { test: string; priority: string; rationale: string }[],
+  consults: { specialty: string; urgency: string; reason: string }[]
+): number[] {
+  const taskIds: number[] = [];
+
+  // Create workup tasks
+  for (const item of workup) {
+    const priority = item.priority === 'stat' ? 'stat' : item.priority === 'routine' ? 'routine' : 'urgent';
+    const id = createTask({
+      patientId,
+      task: item.test,
+      category: 'workup',
+      priority,
+      status: 'pending',
+      source: 'ai_analysis',
+      notes: item.rationale,
+    });
+    taskIds.push(id);
+  }
+
+  // Create consult tasks
+  for (const item of consults) {
+    const priority = item.urgency === 'emergent' ? 'stat' : item.urgency === 'urgent' ? 'urgent' : 'routine';
+    const id = createTask({
+      patientId,
+      task: `Consult: ${item.specialty}`,
+      category: 'consult',
+      priority,
+      status: 'pending',
+      source: 'ai_analysis',
+      notes: item.reason,
+    });
+    taskIds.push(id);
+  }
+
+  return taskIds;
+}
+
+export function getTasksByPatientId(patientId: number): PatientTask[] {
+  const database = getDb();
+  const stmt = database.prepare(`
+    SELECT * FROM patient_tasks
+    WHERE patient_id = ?
+    ORDER BY
+      CASE priority WHEN 'stat' THEN 1 WHEN 'urgent' THEN 2 ELSE 3 END,
+      CASE status WHEN 'pending' THEN 1 WHEN 'in_progress' THEN 2 ELSE 3 END,
+      created_at DESC
+  `);
+  const rows = stmt.all(patientId) as DBPatientTask[];
+  return rows.map(dbTaskToTask);
+}
+
+export function updateTaskStatus(
+  taskId: number,
+  status: PatientTask['status']
+): boolean {
+  const database = getDb();
+  const completedAt = status === 'completed' ? new Date().toISOString() : null;
+  const stmt = database.prepare(`
+    UPDATE patient_tasks
+    SET status = ?, completed_at = ?, updated_at = datetime('now')
+    WHERE id = ?
+  `);
+  const result = stmt.run(status, completedAt, taskId);
+  return result.changes > 0;
+}
+
+export function deleteTask(taskId: number): boolean {
+  const database = getDb();
+  const stmt = database.prepare('DELETE FROM patient_tasks WHERE id = ?');
+  const result = stmt.run(taskId);
+  return result.changes > 0;
+}
+
+// ============ Patient Notes Operations ============
+
+export function getNotesByPatientId(patientId: number): PatientNoteSummary[] {
+  const database = getDb();
+  const stmt = database.prepare(`
+    SELECT id, type, output_json, created_at
+    FROM notes
+    WHERE patient_id = ?
+    ORDER BY created_at DESC
+  `);
+  const rows = stmt.all(patientId) as { id: number; type: string; output_json: string; created_at: string }[];
+
+  return rows.map((row) => {
+    const output = JSON.parse(row.output_json);
+    let summary = '';
+
+    if (row.type === 'hp') {
+      summary = 'H&P Document';
+    } else if (row.type === 'progress') {
+      summary = 'Progress Note';
+    } else if (row.type === 'discharge') {
+      summary = 'Discharge Summary';
+    } else if (row.type === 'analysis') {
+      summary = 'Clinical Analysis';
+    }
+
+    return {
+      id: row.id,
+      type: row.type as PatientNoteSummary['type'],
+      summary,
+      createdAt: row.created_at,
+    };
+  });
 }

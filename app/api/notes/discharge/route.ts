@@ -4,14 +4,20 @@ import {
   DISCHARGE_SUMMARY_SYSTEM_PROMPT,
   buildDischargeSummaryUserMessage,
 } from '@/lib/prompts/discharge-summary';
-import { saveNote } from '@/lib/db';
+import { saveNote, saveAnalysisMetrics } from '@/lib/db';
+import { getPromptVersion } from '@/lib/learning';
 import type { DischargeSummaryInput, DischargeSummaryOutput } from '@/lib/types';
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+const MODEL = 'claude-haiku-4-5-20251001';
+const ANALYSIS_TYPE = 'discharge-summary';
+
 export async function POST(request: Request) {
+  const startTime = Date.now();
+
   try {
     const input: DischargeSummaryInput = await request.json();
 
@@ -36,7 +42,7 @@ export async function POST(request: Request) {
     const userMessage = buildDischargeSummaryUserMessage(input);
 
     const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: MODEL,
       max_tokens: 4096,
       system: DISCHARGE_SUMMARY_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
@@ -57,6 +63,19 @@ export async function POST(request: Request) {
     // Save to database
     const noteId = saveNote('discharge', input.patientInitials, input, output);
     output.id = noteId;
+
+    // Save metrics for learning
+    const latencyMs = Date.now() - startTime;
+    saveAnalysisMetrics({
+      noteId,
+      analysisType: ANALYSIS_TYPE,
+      modelUsed: MODEL,
+      promptVersion: getPromptVersion('discharge-summary'),
+      inputTokens: response.usage?.input_tokens,
+      outputTokens: response.usage?.output_tokens,
+      latencyMs,
+      finishReason: response.stop_reason ?? undefined,
+    });
 
     return NextResponse.json(output);
   } catch (error) {

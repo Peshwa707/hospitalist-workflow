@@ -5,13 +5,20 @@ import {
   getCareCoordinationPrompt,
   parseCareCoordinationResponse,
 } from '@/lib/prompts/care-coordination';
-import type { CareCoordinationInput } from '@/lib/types';
+import { saveNote, saveAnalysisMetrics } from '@/lib/db';
+import { getPromptVersion } from '@/lib/learning';
+import type { CareCoordinationInput, CareCoordinationOutput } from '@/lib/types';
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+const MODEL = 'claude-sonnet-4-20250514';
+const ANALYSIS_TYPE = 'care-coordination';
+
 export async function POST(request: Request) {
+  const startTime = Date.now();
+
   try {
     const input: CareCoordinationInput = await request.json();
 
@@ -29,7 +36,7 @@ export async function POST(request: Request) {
     );
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: MODEL,
       max_tokens: 4096,
       system: CARE_COORDINATION_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
@@ -41,7 +48,25 @@ export async function POST(request: Request) {
       .join('\n');
 
     try {
-      const output = parseCareCoordinationResponse(content);
+      const output: CareCoordinationOutput & { id?: number } = parseCareCoordinationResponse(content);
+
+      // Save to database for feedback tracking
+      const noteId = saveNote('analysis', 'CARE', input, output);
+      output.id = noteId;
+
+      // Save metrics for learning
+      const latencyMs = Date.now() - startTime;
+      saveAnalysisMetrics({
+        noteId,
+        analysisType: ANALYSIS_TYPE,
+        modelUsed: MODEL,
+        promptVersion: getPromptVersion('care-coordination'),
+        inputTokens: response.usage?.input_tokens,
+        outputTokens: response.usage?.output_tokens,
+        latencyMs,
+        finishReason: response.stop_reason ?? undefined,
+      });
+
       return NextResponse.json(output);
     } catch (parseError) {
       console.error('Failed to parse care coordination JSON:', parseError);

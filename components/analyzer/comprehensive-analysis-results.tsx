@@ -8,6 +8,7 @@ import { AnalysisResults } from './analysis-results';
 import { CareCoordinationResults } from './care-coordination-results';
 import { DischargeDestinationResults } from './discharge-destination-results';
 import { CognitiveBiasResults } from './cognitive-bias-results';
+import { FeedbackForm } from '@/components/feedback/feedback-form';
 import {
   Brain,
   Users,
@@ -245,7 +246,7 @@ export function ComprehensiveAnalysisResults({ result }: ComprehensiveAnalysisRe
 
         {/* Diagnosis Tab */}
         <TabsContent value="diagnosis">
-          <AnalysisResults analysis={result.admission} />
+          <AnalysisResults analysis={result.admission} showFeedback={false} />
         </TabsContent>
 
         {/* Care Coordination Tab */}
@@ -263,6 +264,11 @@ export function ComprehensiveAnalysisResults({ result }: ComprehensiveAnalysisRe
           <CognitiveBiasResults result={result.cognitiveBias} />
         </TabsContent>
       </Tabs>
+
+      {/* Feedback Section */}
+      {result.admission.id && (
+        <FeedbackForm noteId={result.admission.id} compact />
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { AIDisclaimer } from '@/components/notes/ai-disclaimer';
+import { FeedbackForm } from '@/components/feedback/feedback-form';
 import {
   Stethoscope,
   FlaskConical,
@@ -15,6 +16,7 @@ import type { AdmissionAnalysisOutput } from '@/lib/types';
 
 interface AnalysisResultsProps {
   analysis: AdmissionAnalysisOutput;
+  showFeedback?: boolean;
 }
 
 function getLikelihoodColor(likelihood: string) {
@@ -56,7 +58,7 @@ function getUrgencyColor(urgency: string) {
   }
 }
 
-export function AnalysisResults({ analysis }: AnalysisResultsProps) {
+export function AnalysisResults({ analysis, showFeedback = true }: AnalysisResultsProps) {
   return (
     <div className="space-y-6">
       <AIDisclaimer />
@@ -220,6 +222,11 @@ export function AnalysisResults({ analysis }: AnalysisResultsProps) {
       <p className="text-xs text-center text-muted-foreground">
         Generated: {new Date(analysis.generatedAt).toLocaleString()}
       </p>
+
+      {/* Feedback Section */}
+      {showFeedback && analysis.id && (
+        <FeedbackForm noteId={analysis.id} compact />
+      )}
     </div>
   );
 }

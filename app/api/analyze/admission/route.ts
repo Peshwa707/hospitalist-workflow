@@ -4,14 +4,20 @@ import {
   ADMISSION_ANALYZER_SYSTEM_PROMPT,
   buildAdmissionAnalyzerUserMessage,
 } from '@/lib/prompts/admission-analyzer';
-import { saveNote } from '@/lib/db';
+import { saveNote, saveAnalysisMetrics } from '@/lib/db';
+import { getPromptVersion } from '@/lib/learning';
 import type { AdmissionAnalysisInput, AdmissionAnalysisOutput } from '@/lib/types';
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+const MODEL = 'claude-sonnet-4-20250514';
+const ANALYSIS_TYPE = 'admission';
+
 export async function POST(request: Request) {
+  const startTime = Date.now();
+
   try {
     const input: AdmissionAnalysisInput = await request.json();
 
@@ -27,7 +33,7 @@ export async function POST(request: Request) {
 
     // Use Sonnet for complex analysis
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: MODEL,
       max_tokens: 4096,
       system: ADMISSION_ANALYZER_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
@@ -78,6 +84,19 @@ export async function POST(request: Request) {
     // Save to database
     const noteId = saveNote('analysis', patientInitials, input, output);
     output.id = noteId;
+
+    // Save metrics for learning
+    const latencyMs = Date.now() - startTime;
+    saveAnalysisMetrics({
+      noteId,
+      analysisType: ANALYSIS_TYPE,
+      modelUsed: MODEL,
+      promptVersion: getPromptVersion('admission'),
+      inputTokens: response.usage?.input_tokens,
+      outputTokens: response.usage?.output_tokens,
+      latencyMs,
+      finishReason: response.stop_reason ?? undefined,
+    });
 
     return NextResponse.json(output);
   } catch (error) {

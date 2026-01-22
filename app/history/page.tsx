@@ -19,12 +19,14 @@ import {
 import type { NoteHistoryItem } from '@/lib/types';
 
 const typeIcons = {
+  hp: FileText,
   progress: FileText,
   discharge: FileOutput,
   analysis: Brain,
 };
 
 const typeLabels = {
+  hp: 'H&P',
   progress: 'Progress Note',
   discharge: 'Discharge Summary',
   analysis: 'Analysis',

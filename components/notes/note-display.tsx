@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AIDisclaimer } from './ai-disclaimer';
+import { FeedbackForm } from '@/components/feedback/feedback-form';
 import { Copy, Check, Edit, RotateCcw } from 'lucide-react';
 
 interface NoteDisplayProps {
@@ -13,6 +14,7 @@ interface NoteDisplayProps {
   generatedAt: string;
   onRegenerate?: () => void;
   isLoading?: boolean;
+  noteId?: number;
 }
 
 export function NoteDisplay({
@@ -21,6 +23,7 @@ export function NoteDisplay({
   generatedAt,
   onRegenerate,
   isLoading,
+  noteId,
 }: NoteDisplayProps) {
   const [copied, setCopied] = useState(false);
 
@@ -81,6 +84,9 @@ export function NoteDisplay({
         <div className="bg-muted/50 rounded-lg p-4 font-mono text-sm whitespace-pre-wrap border">
           {content}
         </div>
+        {noteId && (
+          <FeedbackForm noteId={noteId} compact />
+        )}
       </CardContent>
     </Card>
   );

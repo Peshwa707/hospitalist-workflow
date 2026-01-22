@@ -4,14 +4,20 @@ import {
   PRIOR_CARE_SUMMARY_SYSTEM_PROMPT,
   buildPriorCareSummaryUserMessage,
 } from '@/lib/prompts/prior-care-summary';
-import { saveNote } from '@/lib/db';
+import { saveNote, saveAnalysisMetrics } from '@/lib/db';
+import { getPromptVersion } from '@/lib/learning';
 import type { PriorCareSummaryInput, PriorCareSummaryOutput } from '@/lib/types';
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+const MODEL = 'claude-sonnet-4-20250514';
+const ANALYSIS_TYPE = 'prior-care';
+
 export async function POST(request: Request) {
+  const startTime = Date.now();
+
   try {
     const input: PriorCareSummaryInput = await request.json();
 
@@ -28,7 +34,7 @@ export async function POST(request: Request) {
     );
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: MODEL,
       max_tokens: 4096,
       system: PRIOR_CARE_SUMMARY_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
@@ -59,12 +65,25 @@ export async function POST(request: Request) {
     }
 
     // Save to database
-    saveNote(
+    const noteId = saveNote(
       'analysis',
       'PRIOR',
       { documents: input.documents.substring(0, 500) + '...', patientContext: input.patientContext },
       summary
     );
+
+    // Save metrics for learning
+    const latencyMs = Date.now() - startTime;
+    saveAnalysisMetrics({
+      noteId,
+      analysisType: ANALYSIS_TYPE,
+      modelUsed: MODEL,
+      promptVersion: getPromptVersion('prior-care'),
+      inputTokens: response.usage?.input_tokens,
+      outputTokens: response.usage?.output_tokens,
+      latencyMs,
+      finishReason: response.stop_reason ?? undefined,
+    });
 
     return NextResponse.json(summary);
   } catch (error) {

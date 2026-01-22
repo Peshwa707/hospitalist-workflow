@@ -19,32 +19,51 @@ import {
   getCognitiveBiasPrompt,
   parseCognitiveBiasResponse,
 } from '@/lib/prompts/cognitive-bias';
-import { saveNote } from '@/lib/db';
+import { saveNote, saveNoteWithPatient, saveAnalysisMetrics, createTasksFromAnalysis } from '@/lib/db';
+import { getPromptVersion } from '@/lib/learning';
 import type {
   ComprehensiveAnalysisInput,
   ComprehensiveAnalysisOutput,
   AdmissionAnalysisOutput,
 } from '@/lib/types';
 
+interface ExtendedComprehensiveInput extends ComprehensiveAnalysisInput {
+  patientId?: number;
+}
+
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+const MODEL = 'claude-sonnet-4-20250514';
+
+interface AnalysisResult {
+  content: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  finishReason?: string;
+}
+
 async function runAnalysis(
   systemPrompt: string,
   userMessage: string
-): Promise<string> {
+): Promise<AnalysisResult> {
   const response = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: MODEL,
     max_tokens: 4096,
     system: systemPrompt,
     messages: [{ role: 'user', content: userMessage }],
   });
 
-  return response.content
-    .filter((block) => block.type === 'text')
-    .map((block) => block.text)
-    .join('\n');
+  return {
+    content: response.content
+      .filter((block) => block.type === 'text')
+      .map((block) => block.text)
+      .join('\n'),
+    inputTokens: response.usage?.input_tokens,
+    outputTokens: response.usage?.output_tokens,
+    finishReason: response.stop_reason ?? undefined,
+  };
 }
 
 function parseAdmissionResponse(content: string): AdmissionAnalysisOutput {
@@ -67,8 +86,10 @@ function parseAdmissionResponse(content: string): AdmissionAnalysisOutput {
 }
 
 export async function POST(request: Request) {
+  const startTime = Date.now();
+
   try {
-    const input: ComprehensiveAnalysisInput = await request.json();
+    const input: ExtendedComprehensiveInput = await request.json();
 
     if (!input.admissionNote || input.admissionNote.trim().length < 50) {
       return NextResponse.json(
@@ -78,7 +99,7 @@ export async function POST(request: Request) {
     }
 
     // Run all analyses in parallel
-    const [admissionContent, careCoordContent, dischargeContent, biasContent] = await Promise.all([
+    const [admissionResult, careCoordResult, dischargeResult, biasResult] = await Promise.all([
       // Admission Analysis
       runAnalysis(
         ADMISSION_ANALYZER_SYSTEM_PROMPT,
@@ -108,10 +129,10 @@ export async function POST(request: Request) {
 
     // Parse all responses
     const output: ComprehensiveAnalysisOutput = {
-      admission: parseAdmissionResponse(admissionContent),
-      careCoordination: parseCareCoordinationResponse(careCoordContent),
-      dischargeDestination: parseDischargeDestinationResponse(dischargeContent),
-      cognitiveBias: parseCognitiveBiasResponse(biasContent),
+      admission: parseAdmissionResponse(admissionResult.content),
+      careCoordination: parseCareCoordinationResponse(careCoordResult.content),
+      dischargeDestination: parseDischargeDestinationResponse(dischargeResult.content),
+      cognitiveBias: parseCognitiveBiasResponse(biasResult.content),
       generatedAt: new Date().toISOString(),
     };
 
@@ -121,9 +142,42 @@ export async function POST(request: Request) {
       ? `${initialsMatch[1]}${initialsMatch[2]}`
       : 'XX';
 
-    // Save to database
-    const noteId = saveNote('analysis', patientInitials, input, output);
+    // Save to database (with patient association if provided)
+    const noteId = input.patientId
+      ? saveNoteWithPatient('analysis', patientInitials, input, output, input.patientId)
+      : saveNote('analysis', patientInitials, input, output);
     output.admission.id = noteId;
+
+    // Auto-create tasks from analysis if patient ID is provided
+    if (input.patientId) {
+      createTasksFromAnalysis(
+        input.patientId,
+        output.admission.recommendedWorkup || [],
+        output.admission.suggestedConsults || []
+      );
+    }
+
+    // Save metrics for learning (aggregate tokens from all analyses)
+    const latencyMs = Date.now() - startTime;
+    const totalInputTokens = (admissionResult.inputTokens || 0) +
+      (careCoordResult.inputTokens || 0) +
+      (dischargeResult.inputTokens || 0) +
+      (biasResult.inputTokens || 0);
+    const totalOutputTokens = (admissionResult.outputTokens || 0) +
+      (careCoordResult.outputTokens || 0) +
+      (dischargeResult.outputTokens || 0) +
+      (biasResult.outputTokens || 0);
+
+    saveAnalysisMetrics({
+      noteId,
+      analysisType: 'comprehensive',
+      modelUsed: MODEL,
+      promptVersion: getPromptVersion('comprehensive'),
+      inputTokens: totalInputTokens,
+      outputTokens: totalOutputTokens,
+      latencyMs,
+      finishReason: 'end_turn',
+    });
 
     return NextResponse.json(output);
   } catch (error) {

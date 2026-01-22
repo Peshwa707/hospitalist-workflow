@@ -135,6 +135,8 @@ export interface ProgressNoteInput {
   physicalExam?: string;
   assessmentNotes?: string;
   planNotes?: string;
+  previousNoteContent?: string; // H&P or previous progress note to build upon
+  previousNoteType?: 'hp' | 'progress';
 }
 
 export interface ProgressNoteOutput {
@@ -202,7 +204,7 @@ export interface AdmissionAnalysisOutput {
 
 export interface NoteHistoryItem {
   id: number;
-  type: 'progress' | 'discharge' | 'analysis';
+  type: 'progress' | 'discharge' | 'analysis' | 'hp';
   patientInitials: string;
   summary: string;
   createdAt: string;
@@ -371,7 +373,7 @@ export interface ComprehensiveAnalysisOutput {
 // Database schema types
 export interface DBNote {
   id: number;
-  type: 'progress' | 'discharge' | 'analysis';
+  type: 'progress' | 'discharge' | 'analysis' | 'hp';
   patient_id: number | null;
   patient_initials: string;
   input_json: string;
@@ -487,4 +489,43 @@ export interface ParsedPatientProfile {
   parseNotes: string;
   confidence: 'high' | 'medium' | 'low';
   extractedFrom: 'admission_note' | 'progress_note' | 'hp' | 'discharge' | 'unknown';
+}
+
+// Patient Task/Checklist Types
+export interface PatientTask {
+  id?: number;
+  patientId: number;
+  task: string;
+  category: 'workup' | 'consult' | 'medication' | 'discharge' | 'follow_up' | 'other';
+  priority: 'stat' | 'urgent' | 'routine';
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  source: 'ai_analysis' | 'manual';
+  notes?: string;
+  dueDate?: string;
+  completedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface DBPatientTask {
+  id: number;
+  patient_id: number;
+  task: string;
+  category: string;
+  priority: string;
+  status: string;
+  source: string;
+  notes: string | null;
+  due_date: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Patient Notes Summary
+export interface PatientNoteSummary {
+  id: number;
+  type: 'progress' | 'discharge' | 'analysis' | 'hp';
+  summary: string;
+  createdAt: string;
 }

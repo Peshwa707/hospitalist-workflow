@@ -92,8 +92,9 @@ export async function POST(request: Request) {
       );
     }
 
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Failed to generate H&P' },
+      { error: `Failed to generate H&P: ${errorMessage}` },
       { status: 500 }
     );
   }

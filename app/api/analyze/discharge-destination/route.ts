@@ -5,13 +5,20 @@ import {
   getDischargeDestinationPrompt,
   parseDischargeDestinationResponse,
 } from '@/lib/prompts/discharge-destination';
-import type { DischargeDestinationInput } from '@/lib/types';
+import { saveNote, saveAnalysisMetrics } from '@/lib/db';
+import { getPromptVersion } from '@/lib/learning';
+import type { DischargeDestinationInput, DischargeDestinationOutput } from '@/lib/types';
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+const MODEL = 'claude-sonnet-4-20250514';
+const ANALYSIS_TYPE = 'discharge-destination';
+
 export async function POST(request: Request) {
+  const startTime = Date.now();
+
   try {
     const input: DischargeDestinationInput = await request.json();
 
@@ -31,7 +38,7 @@ export async function POST(request: Request) {
     );
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: MODEL,
       max_tokens: 4096,
       system: DISCHARGE_DESTINATION_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
@@ -43,7 +50,25 @@ export async function POST(request: Request) {
       .join('\n');
 
     try {
-      const output = parseDischargeDestinationResponse(content);
+      const output: DischargeDestinationOutput & { id?: number } = parseDischargeDestinationResponse(content);
+
+      // Save to database for feedback tracking
+      const noteId = saveNote('analysis', 'DISPO', input, output);
+      output.id = noteId;
+
+      // Save metrics for learning
+      const latencyMs = Date.now() - startTime;
+      saveAnalysisMetrics({
+        noteId,
+        analysisType: ANALYSIS_TYPE,
+        modelUsed: MODEL,
+        promptVersion: getPromptVersion('discharge-destination'),
+        inputTokens: response.usage?.input_tokens,
+        outputTokens: response.usage?.output_tokens,
+        latencyMs,
+        finishReason: response.stop_reason ?? undefined,
+      });
+
       return NextResponse.json(output);
     } catch (parseError) {
       console.error('Failed to parse discharge destination JSON:', parseError);
