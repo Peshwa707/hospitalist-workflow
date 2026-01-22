@@ -1,13 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Loader2, FileText } from 'lucide-react';
-import type { ProgressNoteInput, ProgressNoteOutput } from '@/lib/types';
+import { Loader2, FileText, Mic } from 'lucide-react';
+import { PatientSelector } from '@/components/patients/patient-selector';
+import { DictationPanel } from '@/components/speech/dictation-panel';
+import { SpeechInput } from '@/components/speech/speech-input';
+import type { ProgressNoteInput, ProgressNoteOutput, Patient, SpeechStructuredData } from '@/lib/types';
 
 interface ProgressNoteFormProps {
   onGenerated: (output: ProgressNoteOutput) => void;
@@ -16,6 +18,8 @@ interface ProgressNoteFormProps {
 export function ProgressNoteForm({ onGenerated }: ProgressNoteFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [showDictation, setShowDictation] = useState(false);
 
   const [formData, setFormData] = useState<ProgressNoteInput>({
     patientInitials: '',
@@ -28,6 +32,80 @@ export function ProgressNoteForm({ onGenerated }: ProgressNoteFormProps) {
     assessmentNotes: '',
     planNotes: '',
   });
+
+  // Pre-fill form when patient is selected
+  useEffect(() => {
+    if (selectedPatient) {
+      // Calculate hospital day from admission date
+      let hospitalDay = 1;
+      if (selectedPatient.admissionDate) {
+        const admission = new Date(selectedPatient.admissionDate);
+        const today = new Date();
+        const diffTime = today.getTime() - admission.getTime();
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        hospitalDay = Math.max(1, diffDays + 1);
+      }
+
+      // Format vitals from patient
+      let vitals = '';
+      if (selectedPatient.recentVitals) {
+        const v = selectedPatient.recentVitals;
+        const parts: string[] = [];
+        if (v.temperature) parts.push(`T ${v.temperature}`);
+        if (v.heartRate) parts.push(`HR ${v.heartRate}`);
+        if (v.bloodPressure) parts.push(`BP ${v.bloodPressure}`);
+        if (v.respiratoryRate) parts.push(`RR ${v.respiratoryRate}`);
+        if (v.oxygenSaturation) {
+          parts.push(`O2 ${v.oxygenSaturation}%${v.oxygenDevice ? ` ${v.oxygenDevice}` : ' RA'}`);
+        }
+        vitals = parts.join(', ');
+      }
+
+      // Format labs from patient
+      let labs = '';
+      if (selectedPatient.recentLabs.length > 0) {
+        labs = selectedPatient.recentLabs
+          .map((l) => `${l.name}: ${l.value}${l.unit ? ` ${l.unit}` : ''}`)
+          .join(', ');
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        patientId: selectedPatient.id,
+        patientInitials: selectedPatient.initials,
+        hospitalDay,
+        diagnosis: selectedPatient.primaryDiagnoses[0] || prev.diagnosis,
+        vitals: vitals || prev.vitals,
+        labs: labs || prev.labs,
+      }));
+    }
+  }, [selectedPatient]);
+
+  const handlePatientSelect = (patient: Patient | null) => {
+    setSelectedPatient(patient);
+    if (!patient) {
+      // Clear patient-related fields when deselected
+      setFormData((prev) => ({
+        ...prev,
+        patientId: undefined,
+        patientInitials: '',
+        hospitalDay: 1,
+      }));
+    }
+  };
+
+  const handleDictationStructured = (data: SpeechStructuredData) => {
+    setFormData((prev) => ({
+      ...prev,
+      subjective: data.subjective || prev.subjective,
+      vitals: data.vitals || prev.vitals,
+      labs: data.labs || prev.labs,
+      physicalExam: data.physicalExam || prev.physicalExam,
+      assessmentNotes: data.assessmentNotes || prev.assessmentNotes,
+      planNotes: data.planNotes || prev.planNotes,
+    }));
+    setShowDictation(false);
+  };
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -65,34 +143,61 @@ export function ProgressNoteForm({ onGenerated }: ProgressNoteFormProps) {
     }
   };
 
+  // Show dictation panel if in dictation mode
+  if (showDictation) {
+    return (
+      <DictationPanel
+        onStructured={handleDictationStructured}
+        onCancel={() => setShowDictation(false)}
+      />
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="h-5 w-5" />
-          Progress Note Input
-        </CardTitle>
-        <CardDescription>
-          Enter clinical details to generate a SOAP-format progress note.
-          Required fields are marked with *.
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Progress Note Input
+            </CardTitle>
+            <CardDescription>
+              Enter clinical details to generate a SOAP-format progress note.
+              Required fields are marked with *.
+            </CardDescription>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setShowDictation(true)}
+            className="gap-2"
+          >
+            <Mic className="h-4 w-4" />
+            Dictate
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Patient Selector */}
+          <PatientSelector
+            selectedPatient={selectedPatient}
+            onSelectPatient={handlePatientSelect}
+          />
+
           {/* Patient Info Row */}
           <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="patientInitials">Patient Initials *</Label>
-              <Input
-                id="patientInitials"
-                name="patientInitials"
-                placeholder="JD"
-                value={formData.patientInitials}
-                onChange={handleChange}
-                required
-                maxLength={4}
-              />
-            </div>
+            <SpeechInput
+              id="patientInitials"
+              name="patientInitials"
+              label="Patient Initials"
+              placeholder="JD"
+              value={formData.patientInitials}
+              onChange={handleChange}
+              required
+              maxLength={4}
+            />
             <div className="space-y-2">
               <Label htmlFor="hospitalDay">Hospital Day *</Label>
               <Input
@@ -105,93 +210,83 @@ export function ProgressNoteForm({ onGenerated }: ProgressNoteFormProps) {
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="diagnosis">Primary Diagnosis *</Label>
-              <Input
-                id="diagnosis"
-                name="diagnosis"
-                placeholder="CHF exacerbation"
-                value={formData.diagnosis}
-                onChange={handleChange}
-                required
-              />
-            </div>
+            <SpeechInput
+              id="diagnosis"
+              name="diagnosis"
+              label="Primary Diagnosis"
+              placeholder="CHF exacerbation"
+              value={formData.diagnosis}
+              onChange={handleChange}
+              required
+            />
           </div>
 
           {/* Subjective */}
-          <div className="space-y-2">
-            <Label htmlFor="subjective">Subjective / Overnight Events *</Label>
-            <Textarea
-              id="subjective"
-              name="subjective"
-              placeholder="Day 3, feeling better, no SOB at rest, slept well, no chest pain"
-              value={formData.subjective}
-              onChange={handleChange}
-              required
-              rows={2}
-            />
-          </div>
+          <SpeechInput
+            id="subjective"
+            name="subjective"
+            label="Subjective / Overnight Events"
+            placeholder="Day 3, feeling better, no SOB at rest, slept well, no chest pain"
+            value={formData.subjective}
+            onChange={handleChange}
+            required
+            multiline
+            rows={2}
+          />
 
           {/* Objective Fields */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="vitals">Vitals</Label>
-              <Input
-                id="vitals"
-                name="vitals"
-                placeholder="T 98.6, HR 78, BP 124/76, RR 16, O2 96% RA"
-                value={formData.vitals}
-                onChange={handleChange}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="labs">Labs / Studies</Label>
-              <Input
-                id="labs"
-                name="labs"
-                placeholder="BMP wnl, BNP 450 (down from 1200)"
-                value={formData.labs}
-                onChange={handleChange}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="physicalExam">Physical Exam Findings</Label>
-            <Textarea
-              id="physicalExam"
-              name="physicalExam"
-              placeholder="JVP 6cm, clear lungs, no peripheral edema, RRR"
-              value={formData.physicalExam}
+            <SpeechInput
+              id="vitals"
+              name="vitals"
+              label="Vitals"
+              placeholder="T 98.6, HR 78, BP 124/76, RR 16, O2 96% RA"
+              value={formData.vitals}
               onChange={handleChange}
-              rows={2}
+            />
+            <SpeechInput
+              id="labs"
+              name="labs"
+              label="Labs / Studies"
+              placeholder="BMP wnl, BNP 450 (down from 1200)"
+              value={formData.labs}
+              onChange={handleChange}
             />
           </div>
 
+          <SpeechInput
+            id="physicalExam"
+            name="physicalExam"
+            label="Physical Exam Findings"
+            placeholder="JVP 6cm, clear lungs, no peripheral edema, RRR"
+            value={formData.physicalExam}
+            onChange={handleChange}
+            multiline
+            rows={2}
+          />
+
           {/* Assessment & Plan Notes */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="assessmentNotes">Assessment Notes</Label>
-              <Textarea
-                id="assessmentNotes"
-                name="assessmentNotes"
-                placeholder="Euvolemic, responding to diuresis"
-                value={formData.assessmentNotes}
-                onChange={handleChange}
-                rows={2}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="planNotes">Plan Notes</Label>
-              <Textarea
-                id="planNotes"
-                name="planNotes"
-                placeholder="Continue IV furosemide, advance diet, PT eval"
-                value={formData.planNotes}
-                onChange={handleChange}
-                rows={2}
-              />
-            </div>
+            <SpeechInput
+              id="assessmentNotes"
+              name="assessmentNotes"
+              label="Assessment Notes"
+              placeholder="Euvolemic, responding to diuresis"
+              value={formData.assessmentNotes}
+              onChange={handleChange}
+              multiline
+              rows={2}
+            />
+            <SpeechInput
+              id="planNotes"
+              name="planNotes"
+              label="Plan Notes"
+              placeholder="Continue IV furosemide, advance diet, PT eval"
+              value={formData.planNotes}
+              onChange={handleChange}
+              multiline
+              rows={2}
+            />
           </div>
 
           {error && (

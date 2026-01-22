@@ -4,9 +4,9 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Loader2, FileOutput } from 'lucide-react';
+import { SpeechInput } from '@/components/speech/speech-input';
 import type { DischargeSummaryInput, DischargeSummaryOutput } from '@/lib/types';
 
 interface DischargeSummaryFormProps {
@@ -82,18 +82,16 @@ export function DischargeSummaryForm({ onGenerated }: DischargeSummaryFormProps)
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Patient Info Row */}
           <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="patientInitials">Patient Initials *</Label>
-              <Input
-                id="patientInitials"
-                name="patientInitials"
-                placeholder="JD"
-                value={formData.patientInitials}
-                onChange={handleChange}
-                required
-                maxLength={4}
-              />
-            </div>
+            <SpeechInput
+              id="patientInitials"
+              name="patientInitials"
+              label="Patient Initials"
+              placeholder="JD"
+              value={formData.patientInitials}
+              onChange={handleChange}
+              required
+              maxLength={4}
+            />
             <div className="space-y-2">
               <Label htmlFor="admissionDate">Admission Date *</Label>
               <Input
@@ -120,94 +118,85 @@ export function DischargeSummaryForm({ onGenerated }: DischargeSummaryFormProps)
 
           {/* Diagnoses */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="admittingDiagnosis">Admitting Diagnosis *</Label>
-              <Input
-                id="admittingDiagnosis"
-                name="admittingDiagnosis"
-                placeholder="Acute CHF exacerbation"
-                value={formData.admittingDiagnosis}
-                onChange={handleChange}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="dischargeDiagnosis">Discharge Diagnosis *</Label>
-              <Input
-                id="dischargeDiagnosis"
-                name="dischargeDiagnosis"
-                placeholder="1. CHF with preserved EF 2. HTN 3. T2DM"
-                value={formData.dischargeDiagnosis}
-                onChange={handleChange}
-                required
-              />
-            </div>
+            <SpeechInput
+              id="admittingDiagnosis"
+              name="admittingDiagnosis"
+              label="Admitting Diagnosis"
+              placeholder="Acute CHF exacerbation"
+              value={formData.admittingDiagnosis}
+              onChange={handleChange}
+              required
+            />
+            <SpeechInput
+              id="dischargeDiagnosis"
+              name="dischargeDiagnosis"
+              label="Discharge Diagnosis"
+              placeholder="1. CHF with preserved EF 2. HTN 3. T2DM"
+              value={formData.dischargeDiagnosis}
+              onChange={handleChange}
+              required
+            />
           </div>
 
           {/* Hospital Course */}
-          <div className="space-y-2">
-            <Label htmlFor="hospitalCourse">Hospital Course Summary *</Label>
-            <Textarea
-              id="hospitalCourse"
-              name="hospitalCourse"
-              placeholder="65M with CHF admitted for volume overload. Treated with IV diuresis, achieved dry weight by day 3. Echo showed EF 55%, no new wall motion abnormalities. Transitioned to oral diuretics, euvolemic at discharge."
-              value={formData.hospitalCourse}
-              onChange={handleChange}
-              required
-              rows={4}
-            />
-          </div>
+          <SpeechInput
+            id="hospitalCourse"
+            name="hospitalCourse"
+            label="Hospital Course Summary"
+            placeholder="65M with CHF admitted for volume overload. Treated with IV diuresis, achieved dry weight by day 3. Echo showed EF 55%, no new wall motion abnormalities. Transitioned to oral diuretics, euvolemic at discharge."
+            value={formData.hospitalCourse}
+            onChange={handleChange}
+            required
+            multiline
+            rows={4}
+          />
 
           {/* Procedures */}
-          <div className="space-y-2">
-            <Label htmlFor="procedures">Procedures Performed</Label>
-            <Textarea
-              id="procedures"
-              name="procedures"
-              placeholder="TTE 1/10: EF 55%, mild MR, no pericardial effusion"
-              value={formData.procedures}
-              onChange={handleChange}
-              rows={2}
-            />
-          </div>
+          <SpeechInput
+            id="procedures"
+            name="procedures"
+            label="Procedures Performed"
+            placeholder="TTE 1/10: EF 55%, mild MR, no pericardial effusion"
+            value={formData.procedures}
+            onChange={handleChange}
+            multiline
+            rows={2}
+          />
 
           {/* Medications */}
-          <div className="space-y-2">
-            <Label htmlFor="medications">Discharge Medications</Label>
-            <Textarea
-              id="medications"
-              name="medications"
-              placeholder="Furosemide 40mg PO daily, Lisinopril 10mg daily, Metoprolol succinate 50mg daily, Metformin 1000mg BID"
-              value={formData.medications}
-              onChange={handleChange}
-              rows={3}
-            />
-          </div>
+          <SpeechInput
+            id="medications"
+            name="medications"
+            label="Discharge Medications"
+            placeholder="Furosemide 40mg PO daily, Lisinopril 10mg daily, Metoprolol succinate 50mg daily, Metformin 1000mg BID"
+            value={formData.medications}
+            onChange={handleChange}
+            multiline
+            rows={3}
+          />
 
           {/* Follow-up */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="followUp">Follow-up Plans</Label>
-              <Textarea
-                id="followUp"
-                name="followUp"
-                placeholder="PCP in 1 week, Cardiology in 2 weeks, Daily weights"
-                value={formData.followUp}
-                onChange={handleChange}
-                rows={2}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="patientEducation">Patient Education</Label>
-              <Textarea
-                id="patientEducation"
-                name="patientEducation"
-                placeholder="Low sodium diet, daily weights, call if weight gain >3 lbs"
-                value={formData.patientEducation}
-                onChange={handleChange}
-                rows={2}
-              />
-            </div>
+            <SpeechInput
+              id="followUp"
+              name="followUp"
+              label="Follow-up Plans"
+              placeholder="PCP in 1 week, Cardiology in 2 weeks, Daily weights"
+              value={formData.followUp}
+              onChange={handleChange}
+              multiline
+              rows={2}
+            />
+            <SpeechInput
+              id="patientEducation"
+              name="patientEducation"
+              label="Patient Education"
+              placeholder="Low sodium diet, daily weights, call if weight gain >3 lbs"
+              value={formData.patientEducation}
+              onChange={handleChange}
+              multiline
+              rows={2}
+            />
           </div>
 
           {error && (

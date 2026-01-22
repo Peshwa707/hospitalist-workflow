@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Loader2, Brain } from 'lucide-react';
+import { SpeechInputButton } from '@/components/speech/speech-input-button';
 import type { AdmissionAnalysisOutput } from '@/lib/types';
 
 interface AdmissionAnalyzerFormProps {
@@ -58,7 +59,14 @@ export function AdmissionAnalyzerForm({ onAnalyzed }: AdmissionAnalyzerFormProps
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="admissionNote">Admission Note</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="admissionNote">Admission Note</Label>
+              <SpeechInputButton
+                onTranscript={(text) =>
+                  setAdmissionNote((prev) => (prev ? `${prev} ${text}` : text))
+                }
+              />
+            </div>
             <Textarea
               id="admissionNote"
               placeholder="Paste the complete admission note here...

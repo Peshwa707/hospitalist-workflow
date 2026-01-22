@@ -10,10 +10,12 @@ import {
   History,
   Home,
   Stethoscope,
+  Users,
 } from 'lucide-react';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: Home },
+  { href: '/patients', label: 'Patients', icon: Users },
   { href: '/progress', label: 'Progress Note', icon: FileText },
   { href: '/discharge', label: 'Discharge Summary', icon: FileOutput },
   { href: '/analyze', label: 'Analyzer', icon: Brain },

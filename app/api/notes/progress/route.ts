@@ -4,7 +4,7 @@ import {
   PROGRESS_NOTE_SYSTEM_PROMPT,
   buildProgressNoteUserMessage,
 } from '@/lib/prompts/progress-note';
-import { saveNote } from '@/lib/db';
+import { saveNote, saveNoteWithPatient } from '@/lib/db';
 import type { ProgressNoteInput, ProgressNoteOutput } from '@/lib/types';
 
 const client = new Anthropic({
@@ -44,8 +44,10 @@ export async function POST(request: Request) {
       input,
     };
 
-    // Save to database
-    const noteId = saveNote('progress', input.patientInitials, input, output);
+    // Save to database (with patient ID if provided)
+    const noteId = input.patientId
+      ? saveNoteWithPatient('progress', input.patientInitials, input, output, input.patientId)
+      : saveNote('progress', input.patientInitials, input, output);
     output.id = noteId;
 
     return NextResponse.json(output);
