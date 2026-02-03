@@ -1,4 +1,4 @@
-import { ClinicalWorkflow } from '@/components/workflow/clinical-workflow';
+import { IntakeWorkflow } from '@/components/workflow/intake-workflow';
 import { Card, CardContent } from '@/components/ui/card';
 import { AlertTriangle } from 'lucide-react';
 
@@ -7,9 +7,9 @@ export default function Home() {
     <div className="space-y-6">
       {/* Header */}
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Clinical Documentation Assistant</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Patient Intake</h1>
         <p className="text-muted-foreground">
-          Paste EMR data → Generate H&P → Get AI Analysis
+          Enter patient data → Select note type → Generate & edit
         </p>
       </div>
 
@@ -25,7 +25,7 @@ export default function Home() {
       </Card>
 
       {/* Main Workflow */}
-      <ClinicalWorkflow />
+      <IntakeWorkflow />
     </div>
   );
 }

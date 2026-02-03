@@ -204,7 +204,7 @@ export interface AdmissionAnalysisOutput {
 
 export interface NoteHistoryItem {
   id: number;
-  type: 'progress' | 'discharge' | 'analysis' | 'hp';
+  type: 'progress' | 'discharge' | 'analysis' | 'hp' | 'clinical_summary' | 'briefing' | 'signout';
   patientMrn: string;
   summary: string;
   createdAt: string;
@@ -373,7 +373,7 @@ export interface ComprehensiveAnalysisOutput {
 // Database schema types
 export interface DBNote {
   id: number;
-  type: 'progress' | 'discharge' | 'analysis' | 'hp';
+  type: 'progress' | 'discharge' | 'analysis' | 'hp' | 'clinical_summary' | 'briefing' | 'signout';
   patient_id: number | null;
   patient_mrn: string;
   input_json: string;
@@ -555,6 +555,110 @@ export interface DBNoteEmbedding {
 export interface SimilarNote {
   note: DBNote;
   similarity: number;
+}
+
+// ============ Pre-Round Briefing Types ============
+
+export interface PatientBriefing {
+  patientId: number;
+  patientMrn: string;
+  roomNumber?: string;
+  hospitalDay: number;
+  keyIssues: { issue: string; severity: 'critical' | 'important' | 'routine'; context: string }[];
+  overnightEvents: string[];
+  pendingTasks: { task: string; priority: 'stat' | 'urgent' | 'routine'; category: string }[];
+  labsToReview: { test: string; value: string; trend?: string; flag?: string }[];
+  anticipatedIssues: string[];
+  suggestedFocus: string;
+  generatedAt: string;
+}
+
+export interface BlindSpotChallengeOutput {
+  potentialMisses: { item: string; category: string; reasoning: string; suggestedAction: string; urgency: string }[];
+  questionsToConsider: string[];
+  safetyNet: { condition: string; returnPrecaution: string }[];
+  generatedAt: string;
+}
+
+// ============ Similar Cases RAG Types ============
+
+export interface SimilarCaseSummary {
+  noteId: number;
+  noteType: string;
+  patientMrn: string;
+  similarity: number;
+  createdAt: string;
+  presentation: string;
+  keyFindings: string[];
+  workupPerformed: string[];
+  outcome?: string;
+  lessonsLearned?: string[];
+}
+
+export interface SimilarCasesOutput {
+  cases: SimilarCaseSummary[];
+  synthesizedInsights?: {
+    commonPatterns: string[];
+    typicalWorkup: string[];
+    pitfalls: string[];
+  };
+  generatedAt: string;
+}
+
+// ============ Signout Types ============
+
+export interface PatientSignout {
+  patientId: number;
+  patientMrn: string;
+  roomNumber?: string;
+  oneLiner: string;
+  activeIssues: { problem: string; status: string; plan: string }[];
+  ifThenScenarios: { condition: string; action: string; escalation?: string }[];
+  overnightConcerns: { concern: string; likelihood: string; preparation: string }[];
+  pendingItems: { item: string; expectedTime?: string; action: string }[];
+  codeStatus: string;
+  generatedAt: string;
+}
+
+export interface ConsultPreBrief {
+  specialty: string;
+  patientMrn: string;
+  oneLineSummary: string;
+  relevantHistory: string[];
+  pertinentFindings: { category: string; finding: string; significance: string }[];
+  specificQuestion: string;
+  relevantData: { labs?: string[]; imaging?: string[]; vitals?: string };
+  urgencyJustification: string;
+  generatedAt: string;
+}
+
+// ============ Clinical Summary Types ============
+
+export interface ClinicalDataDumpInput {
+  rawData: string;
+  dataHints?: string[];
+  patientContext?: string;
+  focusAreas?: string[];
+}
+
+export interface ClinicalSummaryOutput {
+  id?: number;
+  parsedDataTypes: { types: string[]; confidence: string; parseNotes: string };
+  summary: {
+    oneLiner: string;
+    activeProblems: { problem: string; status: string; supportingData: string[] }[];
+    keyFindings: { category: string; finding: string; significance: 'critical' | 'important' | 'routine' }[];
+  };
+  clinicalTrajectory: 'improving' | 'stable' | 'worsening' | 'unclear';
+  nextSteps: {
+    category: 'workup' | 'treatment' | 'consult' | 'disposition' | 'monitoring';
+    action: string;
+    priority: 'stat' | 'urgent' | 'routine';
+    rationale: string;
+  }[];
+  gapsIdentified: { gap: string; importance: string; suggestion: string }[];
+  safetyConsiderations: string[];
+  generatedAt: string;
 }
 
 export interface EmbeddingStats {
