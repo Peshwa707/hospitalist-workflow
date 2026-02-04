@@ -9,10 +9,7 @@ import {
   PROGRESS_NOTE_SYSTEM_PROMPT,
   buildProgressNoteUserMessage,
 } from '@/lib/prompts/progress-note';
-
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+import { getAnthropicClient } from '@/lib/api-client';
 
 // POST /api/notes/[id]/regenerate - Regenerate note with new data
 export async function POST(
@@ -20,6 +17,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const client = getAnthropicClient();
     const { id } = await params;
     const noteId = parseInt(id, 10);
 

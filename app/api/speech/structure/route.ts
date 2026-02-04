@@ -4,14 +4,12 @@ import {
   SPEECH_STRUCTURING_SYSTEM_PROMPT,
   buildSpeechStructuringUserMessage,
 } from '@/lib/prompts/speech-structuring';
+import { getAnthropicClient } from '@/lib/api-client';
 import type { SpeechStructuredData } from '@/lib/types';
-
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
 
 export async function POST(request: Request) {
   try {
+    const client = getAnthropicClient();
     const { transcript } = await request.json();
 
     if (!transcript || typeof transcript !== 'string') {

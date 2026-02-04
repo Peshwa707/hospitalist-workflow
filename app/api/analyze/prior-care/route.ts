@@ -6,11 +6,8 @@ import {
 } from '@/lib/prompts/prior-care-summary';
 import { saveNote, saveAnalysisMetrics } from '@/lib/db';
 import { getPromptVersion } from '@/lib/learning';
+import { getAnthropicClient } from '@/lib/api-client';
 import type { PriorCareSummaryInput, PriorCareSummaryOutput } from '@/lib/types';
-
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
 
 const MODEL = 'claude-sonnet-4-20250514';
 const ANALYSIS_TYPE = 'prior-care';
@@ -19,6 +16,7 @@ export async function POST(request: Request) {
   const startTime = Date.now();
 
   try {
+    const client = getAnthropicClient();
     const input: PriorCareSummaryInput = await request.json();
 
     if (!input.documents || input.documents.trim().length < 100) {

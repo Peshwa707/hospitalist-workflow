@@ -15,21 +15,29 @@ import {
   Trash2,
   Eye,
   Loader2,
+  Sun,
+  ArrowRightLeft,
 } from 'lucide-react';
 import type { NoteHistoryItem } from '@/lib/types';
 
-const typeIcons = {
+const typeIcons: Record<NoteHistoryItem['type'], React.ComponentType<{ className?: string }>> = {
   hp: FileText,
   progress: FileText,
   discharge: FileOutput,
   analysis: Brain,
+  clinical_summary: FileText,
+  briefing: Sun,
+  signout: ArrowRightLeft,
 };
 
-const typeLabels = {
+const typeLabels: Record<NoteHistoryItem['type'], string> = {
   hp: 'H&P',
   progress: 'Progress Note',
   discharge: 'Discharge Summary',
   analysis: 'Analysis',
+  clinical_summary: 'Clinical Summary',
+  briefing: 'Briefing',
+  signout: 'Signout',
 };
 
 export default function HistoryPage() {

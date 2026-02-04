@@ -7,11 +7,8 @@ import {
 } from '@/lib/prompts/care-coordination';
 import { saveNote, saveAnalysisMetrics } from '@/lib/db';
 import { getPromptVersion } from '@/lib/learning';
+import { getAnthropicClient } from '@/lib/api-client';
 import type { CareCoordinationInput, CareCoordinationOutput } from '@/lib/types';
-
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
 
 const MODEL = 'claude-sonnet-4-20250514';
 const ANALYSIS_TYPE = 'care-coordination';
@@ -20,6 +17,7 @@ export async function POST(request: Request) {
   const startTime = Date.now();
 
   try {
+    const client = getAnthropicClient();
     const input: CareCoordinationInput = await request.json();
 
     if (!input.clinicalSummary || input.clinicalSummary.trim().length < 50) {

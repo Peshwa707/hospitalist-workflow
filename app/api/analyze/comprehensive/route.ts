@@ -21,6 +21,7 @@ import {
 } from '@/lib/prompts/cognitive-bias';
 import { saveNote, saveNoteWithPatient, saveAnalysisMetrics, createTasksFromAnalysis } from '@/lib/db';
 import { getPromptVersion } from '@/lib/learning';
+import { getAnthropicClient } from '@/lib/api-client';
 import type {
   ComprehensiveAnalysisInput,
   ComprehensiveAnalysisOutput,
@@ -30,10 +31,6 @@ import type {
 interface ExtendedComprehensiveInput extends ComprehensiveAnalysisInput {
   patientId?: number;
 }
-
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
 
 const MODEL = 'claude-sonnet-4-20250514';
 
@@ -45,6 +42,7 @@ interface AnalysisResult {
 }
 
 async function runAnalysis(
+  client: Anthropic,
   systemPrompt: string,
   userMessage: string
 ): Promise<AnalysisResult> {
@@ -89,6 +87,7 @@ export async function POST(request: Request) {
   const startTime = Date.now();
 
   try {
+    const client = getAnthropicClient();
     const input: ExtendedComprehensiveInput = await request.json();
 
     if (!input.admissionNote || input.admissionNote.trim().length < 50) {
@@ -102,16 +101,19 @@ export async function POST(request: Request) {
     const [admissionResult, careCoordResult, dischargeResult, biasResult] = await Promise.all([
       // Admission Analysis
       runAnalysis(
+        client,
         ADMISSION_ANALYZER_SYSTEM_PROMPT,
         buildAdmissionAnalyzerUserMessage({ admissionNote: input.admissionNote })
       ),
       // Care Coordination
       runAnalysis(
+        client,
         CARE_COORDINATION_SYSTEM_PROMPT,
         getCareCoordinationPrompt(input.admissionNote)
       ),
       // Discharge Destination
       runAnalysis(
+        client,
         DISCHARGE_DESTINATION_SYSTEM_PROMPT,
         getDischargeDestinationPrompt(
           input.admissionNote,
@@ -122,6 +124,7 @@ export async function POST(request: Request) {
       ),
       // Cognitive Bias Check
       runAnalysis(
+        client,
         COGNITIVE_BIAS_SYSTEM_PROMPT,
         getCognitiveBiasPrompt(input.admissionNote)
       ),

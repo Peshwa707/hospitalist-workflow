@@ -18,9 +18,11 @@ import {
   CheckCircle,
   Brain,
   RefreshCw,
+  ClipboardCheck,
 } from 'lucide-react';
 import { NoteDisplay } from '@/components/notes/note-display';
 import { AnalysisViewer } from '@/components/analyzer/analysis-viewer';
+import { DischargeChecklist } from '@/components/discharge/discharge-checklist';
 import type { Patient, HpOutput, ProgressNoteOutput, ComprehensiveAnalysisOutput } from '@/lib/types';
 
 interface PatientWorkflowPanelProps {
@@ -280,10 +282,10 @@ export function PatientWorkflowPanel({ patient, onPatientUpdated }: PatientWorkf
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="daily" className="gap-2">
               <ClipboardList className="h-4 w-4" />
-              Progress Note
+              Progress
             </TabsTrigger>
             <TabsTrigger value="analysis" className="gap-2">
               <Brain className="h-4 w-4" />
@@ -292,6 +294,10 @@ export function PatientWorkflowPanel({ patient, onPatientUpdated }: PatientWorkf
             <TabsTrigger value="hp" className="gap-2">
               <FileText className="h-4 w-4" />
               H&P
+            </TabsTrigger>
+            <TabsTrigger value="discharge" className="gap-2">
+              <ClipboardCheck className="h-4 w-4" />
+              Discharge
             </TabsTrigger>
           </TabsList>
 
@@ -553,6 +559,14 @@ export function PatientWorkflowPanel({ patient, onPatientUpdated }: PatientWorkf
                 isLoading={isGeneratingHp}
               />
             )}
+          </TabsContent>
+
+          {/* Discharge Checklist Tab */}
+          <TabsContent value="discharge" className="mt-4">
+            <DischargeChecklist
+              patientId={patient.id}
+              patientMrn={patient.mrn}
+            />
           </TabsContent>
         </Tabs>
       </CardContent>

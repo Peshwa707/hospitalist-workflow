@@ -6,11 +6,8 @@ import {
 } from '@/lib/prompts/admission-analyzer';
 import { saveNote, saveAnalysisMetrics } from '@/lib/db';
 import { getPromptVersion } from '@/lib/learning';
+import { getAnthropicClient } from '@/lib/api-client';
 import type { AdmissionAnalysisInput, AdmissionAnalysisOutput } from '@/lib/types';
-
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
 
 const MODEL = 'claude-sonnet-4-20250514';
 const ANALYSIS_TYPE = 'admission';
@@ -19,6 +16,7 @@ export async function POST(request: Request) {
   const startTime = Date.now();
 
   try {
+    const client = getAnthropicClient();
     const input: AdmissionAnalysisInput = await request.json();
 
     // Validate required fields

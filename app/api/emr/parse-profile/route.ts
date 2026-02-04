@@ -4,14 +4,12 @@ import {
   EMR_PROFILE_PARSER_SYSTEM_PROMPT,
   buildEmrProfileParserUserMessage,
 } from '@/lib/prompts/emr-profile-parser';
+import { getAnthropicClient } from '@/lib/api-client';
 import type { ParsedPatientProfile, Vitals, LabResult, Medication } from '@/lib/types';
-
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
 
 export async function POST(request: Request) {
   try {
+    const client = getAnthropicClient();
     const { emrText } = await request.json();
 
     if (!emrText || typeof emrText !== 'string') {

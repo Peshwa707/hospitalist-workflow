@@ -30,7 +30,7 @@ function initializeSchema() {
   database.exec(`
     CREATE TABLE IF NOT EXISTS notes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      type TEXT NOT NULL CHECK(type IN ('progress', 'discharge', 'analysis', 'hp')),
+      type TEXT NOT NULL CHECK(type IN ('progress', 'discharge', 'analysis', 'hp', 'clinical_summary', 'briefing', 'signout')),
       patient_mrn TEXT NOT NULL,
       input_json TEXT NOT NULL,
       output_json TEXT NOT NULL,
@@ -152,6 +152,18 @@ function initializeSchema() {
 
     CREATE INDEX IF NOT EXISTS idx_embeddings_note_id ON note_embeddings(note_id);
     CREATE INDEX IF NOT EXISTS idx_embeddings_model ON note_embeddings(embedding_model);
+
+    -- Application settings (API keys, preferences)
+    CREATE TABLE IF NOT EXISTS settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      key TEXT NOT NULL UNIQUE,
+      value TEXT,
+      encrypted BOOLEAN DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key);
   `);
 }
 
@@ -438,7 +450,7 @@ export function searchPatients(searchTerm: string): Patient[] {
 
 // Update saveNote to optionally include patient_id
 export function saveNoteWithPatient(
-  type: 'progress' | 'discharge' | 'analysis' | 'hp',
+  type: 'progress' | 'discharge' | 'analysis' | 'hp' | 'clinical_summary' | 'briefing' | 'signout',
   patientMrn: string,
   input: object,
   output: object,
@@ -1133,4 +1145,85 @@ export function getAllNotesWithEmbeddings(): { note: DBNote; embedding: DBNoteEm
       created_at: row.e_created_at,
     },
   }));
+}
+
+// ============ Settings CRUD Operations ============
+
+export interface DBSetting {
+  id: number;
+  key: string;
+  value: string | null;
+  encrypted: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export function getSetting(key: string): string | null {
+  const database = getDb();
+  const stmt = database.prepare('SELECT value FROM settings WHERE key = ?');
+  const row = stmt.get(key) as { value: string | null } | undefined;
+  return row?.value ?? null;
+}
+
+export function setSetting(key: string, value: string | null): void {
+  const database = getDb();
+  const stmt = database.prepare(`
+    INSERT INTO settings (key, value, updated_at)
+    VALUES (?, ?, datetime('now'))
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')
+  `);
+  stmt.run(key, value);
+}
+
+export function getAllSettings(): Record<string, string | null> {
+  const database = getDb();
+  const stmt = database.prepare('SELECT key, value FROM settings');
+  const rows = stmt.all() as { key: string; value: string | null }[];
+  const settings: Record<string, string | null> = {};
+  for (const row of rows) {
+    settings[row.key] = row.value;
+  }
+  return settings;
+}
+
+export function deleteSetting(key: string): boolean {
+  const database = getDb();
+  const stmt = database.prepare('DELETE FROM settings WHERE key = ?');
+  const result = stmt.run(key);
+  return result.changes > 0;
+}
+
+// API Key helpers
+export type ApiProvider = 'anthropic' | 'openai' | 'google' | 'groq';
+
+export function getApiKey(provider: ApiProvider): string | null {
+  // First check database, then fall back to environment variable
+  const dbKey = getSetting(`api_key_${provider}`);
+  if (dbKey) return dbKey;
+
+  // Fallback to environment variables
+  const envMap: Record<ApiProvider, string> = {
+    anthropic: 'ANTHROPIC_API_KEY',
+    openai: 'OPENAI_API_KEY',
+    google: 'GOOGLE_API_KEY',
+    groq: 'GROQ_API_KEY',
+  };
+
+  return process.env[envMap[provider]] || null;
+}
+
+export function setApiKey(provider: ApiProvider, apiKey: string | null): void {
+  setSetting(`api_key_${provider}`, apiKey);
+}
+
+export function getDefaultProvider(): ApiProvider {
+  const provider = getSetting('default_provider');
+  if (provider && ['anthropic', 'openai', 'google', 'groq'].includes(provider)) {
+    return provider as ApiProvider;
+  }
+  return 'anthropic';
+}
+
+export function setDefaultProvider(provider: ApiProvider): void {
+  setSetting('default_provider', provider);
 }

@@ -3,14 +3,18 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { Stethoscope, Home, History, Users, Clock, ClipboardList } from 'lucide-react';
+import { Stethoscope, Home, History, Users, Clock, ClipboardList, Sun, ArrowRightLeft, FileText, Settings } from 'lucide-react';
 
 const navItems = [
   { href: '/', label: 'Workflow', icon: Home },
+  { href: '/briefing', label: 'Briefing', icon: Sun },
   { href: '/rounding', label: 'Rounding', icon: Clock },
+  { href: '/signout', label: 'Signout', icon: ArrowRightLeft },
+  { href: '/clinical-summary', label: 'Summary', icon: FileText },
   { href: '/tasks', label: 'Tasks', icon: ClipboardList },
   { href: '/patients', label: 'Patients', icon: Users },
   { href: '/history', label: 'History', icon: History },
+  { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
 export function Nav() {

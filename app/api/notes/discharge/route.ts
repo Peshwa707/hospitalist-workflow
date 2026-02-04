@@ -6,11 +6,8 @@ import {
 } from '@/lib/prompts/discharge-summary';
 import { saveNote, saveAnalysisMetrics } from '@/lib/db';
 import { getPromptVersion } from '@/lib/learning';
+import { getAnthropicClient } from '@/lib/api-client';
 import type { DischargeSummaryInput, DischargeSummaryOutput } from '@/lib/types';
-
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const ANALYSIS_TYPE = 'discharge-summary';
@@ -19,6 +16,7 @@ export async function POST(request: Request) {
   const startTime = Date.now();
 
   try {
+    const client = getAnthropicClient();
     const input: DischargeSummaryInput = await request.json();
 
     // Validate required fields

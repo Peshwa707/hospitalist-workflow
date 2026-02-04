@@ -6,11 +6,8 @@ import {
 } from '@/lib/prompts/progress-note';
 import { saveNote, saveNoteWithPatient, saveAnalysisMetrics } from '@/lib/db';
 import { getPromptVersion } from '@/lib/learning';
+import { getAnthropicClient } from '@/lib/api-client';
 import type { ProgressNoteInput, ProgressNoteOutput } from '@/lib/types';
-
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const ANALYSIS_TYPE = 'progress-note';
@@ -19,6 +16,7 @@ export async function POST(request: Request) {
   const startTime = Date.now();
 
   try {
+    const client = getAnthropicClient();
     const input: ProgressNoteInput = await request.json();
 
     // Validate required fields

@@ -17,7 +17,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  BookOpen,
 } from 'lucide-react';
+import { SimilarCasesPanel } from './similar-cases-panel';
 import type { ComprehensiveAnalysisOutput } from '@/lib/types';
 
 interface ComprehensiveAnalysisResultsProps {
@@ -37,7 +39,7 @@ export function ComprehensiveAnalysisResults({ result }: ComprehensiveAnalysisRe
   return (
     <div className="space-y-4">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview" className="flex items-center gap-1 text-xs sm:text-sm">
             <CheckCircle2 className="h-4 w-4" />
             <span className="hidden sm:inline">Overview</span>
@@ -57,6 +59,10 @@ export function ComprehensiveAnalysisResults({ result }: ComprehensiveAnalysisRe
           <TabsTrigger value="bias" className="flex items-center gap-1 text-xs sm:text-sm">
             <BrainCog className="h-4 w-4" />
             <span className="hidden sm:inline">Bias Check</span>
+          </TabsTrigger>
+          <TabsTrigger value="similar" className="flex items-center gap-1 text-xs sm:text-sm">
+            <BookOpen className="h-4 w-4" />
+            <span className="hidden sm:inline">Similar</span>
           </TabsTrigger>
         </TabsList>
 
@@ -262,6 +268,11 @@ export function ComprehensiveAnalysisResults({ result }: ComprehensiveAnalysisRe
         {/* Bias Check Tab */}
         <TabsContent value="bias">
           <CognitiveBiasResults result={result.cognitiveBias} />
+        </TabsContent>
+
+        {/* Similar Cases Tab */}
+        <TabsContent value="similar">
+          <SimilarCasesPanel noteId={result.admission.id} />
         </TabsContent>
       </Tabs>
 

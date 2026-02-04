@@ -7,11 +7,8 @@ import {
 } from '@/lib/prompts/cognitive-bias';
 import { saveNote, saveAnalysisMetrics } from '@/lib/db';
 import { getPromptVersion } from '@/lib/learning';
+import { getAnthropicClient } from '@/lib/api-client';
 import type { CognitiveBiasInput, CognitiveBiasOutput } from '@/lib/types';
-
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
 
 const MODEL = 'claude-sonnet-4-20250514';
 const ANALYSIS_TYPE = 'cognitive-bias';
@@ -20,6 +17,7 @@ export async function POST(request: Request) {
   const startTime = Date.now();
 
   try {
+    const client = getAnthropicClient();
     const input: CognitiveBiasInput = await request.json();
 
     if (!input.clinicalReasoning || input.clinicalReasoning.trim().length < 50) {

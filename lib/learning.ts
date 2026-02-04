@@ -13,7 +13,13 @@ export type AnalysisType =
   | 'prior-care'
   | 'progress-note'
   | 'discharge-summary'
-  | 'hp';
+  | 'hp'
+  | 'briefing'
+  | 'blind_spot_challenge'
+  | 'signout'
+  | 'consult_pre_brief'
+  | 'clinical_summary'
+  | 'similar_cases';
 
 /**
  * Helper to create a metrics tracker for an analysis call.
@@ -91,6 +97,12 @@ export const PROMPT_VERSIONS: Record<AnalysisType, string> = {
   'progress-note': 'v1',
   'discharge-summary': 'v1',
   hp: 'v1',
+  briefing: 'v1',
+  blind_spot_challenge: 'v1',
+  signout: 'v1',
+  consult_pre_brief: 'v1',
+  clinical_summary: 'v1',
+  similar_cases: 'v1',
 };
 
 /**
