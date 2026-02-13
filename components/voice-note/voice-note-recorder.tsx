@@ -25,6 +25,7 @@ export function VoiceNoteRecorder({ patients, onNoteGenerated }: VoiceNoteRecord
   const [selectedPatient, setSelectedPatient] = useState<string>('');
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -36,6 +37,11 @@ export function VoiceNoteRecorder({ patients, onNoteGenerated }: VoiceNoteRecord
     stopRecording: stopAudioRecording,
     resetRecording,
   } = useAudioRecorder();
+
+  // Prevent hydration mismatch by only rendering after mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Sync recorder error to component error
   useEffect(() => {
@@ -140,9 +146,32 @@ export function VoiceNoteRecorder({ patients, onNoteGenerated }: VoiceNoteRecord
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Show loading state until mounted to prevent hydration mismatch
+  if (!mounted) {
+    return (
+      <Card className="w-full max-w-2xl">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mic className="w-5 h-5" />
+            Voice-to-Note
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="py-8 text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-muted-foreground mx-auto" />
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (!isSupported) {
     return (
       <Card className="w-full max-w-2xl">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mic className="w-5 h-5" />
+            Voice-to-Note
+          </CardTitle>
+        </CardHeader>
         <CardContent className="py-8 text-center">
           <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
           <p className="text-muted-foreground">
