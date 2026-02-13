@@ -1,6 +1,7 @@
 import { IntakeWorkflow } from '@/components/workflow/intake-workflow';
 import { Card, CardContent } from '@/components/ui/card';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Mic } from 'lucide-react';
+import Link from 'next/link';
 
 export default function Home() {
   return (
@@ -12,6 +13,23 @@ export default function Home() {
           Enter patient data → Select note type → Generate & edit
         </p>
       </div>
+
+      {/* Quick Action: Voice-to-Note */}
+      <Link href="/voice-note">
+        <Card className="hover:border-primary transition-colors cursor-pointer">
+          <CardContent className="flex items-center gap-4 pt-6">
+            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <Mic className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <h3 className="font-semibold">Voice-to-Note</h3>
+              <p className="text-sm text-muted-foreground">
+                Dictate freely and let AI generate your SOAP progress note
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </Link>
 
       {/* Safety Warning */}
       <Card className="bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800">

@@ -56,9 +56,43 @@ export async function POST(request: Request) {
   const startTime = Date.now();
 
   try {
-    const client = getAnthropicClient();
     const body = await request.json();
-    const { patientId, rawInput } = body;
+    const { patientId, rawInput, directContent } = body;
+
+    // If directContent is provided, skip AI generation and save directly
+    // This is used by voice-to-note where content is already generated
+    if (directContent && typeof directContent === 'string' && directContent.trim()) {
+      let patientMrn = 'UNKNOWN';
+      if (patientId) {
+        const patient = getPatientById(patientId);
+        if (patient) {
+          patientMrn = patient.mrn;
+        }
+      }
+
+      const output = {
+        content: directContent,
+        generatedAt: new Date().toISOString(),
+        input: { rawInput: rawInput || 'Voice dictation', patientId },
+      };
+
+      const noteId = saveNoteWithPatient(
+        'progress',
+        patientMrn,
+        { rawInput: rawInput || 'Voice dictation' },
+        output,
+        patientId || undefined
+      );
+
+      return NextResponse.json({
+        id: noteId,
+        content: directContent,
+        generatedAt: output.generatedAt,
+      });
+    }
+
+    // Standard flow: generate note via AI
+    const client = getAnthropicClient();
 
     if (!rawInput || typeof rawInput !== 'string' || !rawInput.trim()) {
       return NextResponse.json(
