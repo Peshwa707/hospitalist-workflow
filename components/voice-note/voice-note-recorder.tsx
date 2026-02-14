@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Mic, Square, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
-import { useAudioRecorder } from '@/components/speech/use-audio-recorder';
+import { useSpeechRecognition } from '@/components/speech/use-speech-recognition';
 
 type RecordingState = 'idle' | 'recording' | 'processing' | 'complete' | 'error';
 
@@ -23,95 +23,77 @@ interface VoiceNoteRecorderProps {
 export function VoiceNoteRecorder({ patients, onNoteGenerated }: VoiceNoteRecorderProps) {
   const [state, setState] = useState<RecordingState>('idle');
   const [selectedPatient, setSelectedPatient] = useState<string>('');
-  const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-
   const {
-    isRecording,
+    isListening,
     isSupported,
-    error: recorderError,
-    startRecording: startAudioRecording,
-    stopRecording: stopAudioRecording,
-    resetRecording,
-  } = useAudioRecorder();
+    transcript,
+    interimTranscript,
+    error: speechError,
+    startListening,
+    stopListening,
+    resetTranscript,
+  } = useSpeechRecognition({
+    continuous: true,
+    interimResults: true,
+    lang: 'en-US',
+  });
 
-  // Prevent hydration mismatch by only rendering after mount
+  // Prevent hydration mismatch
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Sync recorder error to component error
+  // Sync speech error to component error
   useEffect(() => {
-    if (recorderError) {
-      setError(recorderError);
+    if (speechError && state === 'recording') {
+      setError(speechError);
       setState('error');
     }
-  }, [recorderError]);
+  }, [speechError, state]);
 
-  // Cleanup timer on unmount
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, []);
-
-  const startRecording = async () => {
+  const handleStartRecording = () => {
     setError(null);
-    setDuration(0);
-
-    try {
-      await startAudioRecording();
-      // Only set recording state and start timer AFTER successful start
-      setState('recording');
-      timerRef.current = setInterval(() => {
-        setDuration(d => d + 1);
-      }, 1000);
-    } catch (err) {
-      // Handle any errors from startAudioRecording
-      const errorMessage = err instanceof Error ? err.message : 'Failed to start recording';
-      setError(errorMessage);
-      setState('error');
-    }
+    resetTranscript();
+    setState('recording');
+    startListening();
   };
 
-  const stopRecording = async () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
+  const handleStopRecording = async () => {
+    stopListening();
 
-    setState('processing');
+    const finalTranscript = transcript.trim();
 
-    const audioBlob = await stopAudioRecording();
-
-    if (!audioBlob) {
-      setError('No audio recorded');
+    if (!finalTranscript) {
+      setError('No speech detected. Please try again.');
       setState('error');
       return;
     }
 
-    // Prepare form data
-    const formData = new FormData();
-    formData.append('audio', audioBlob, 'recording.webm');
+    setState('processing');
+
+    // Prepare request body
+    const requestBody: Record<string, string> = {
+      transcription: finalTranscript,
+    };
 
     if (selectedPatient) {
-      formData.append('patientId', selectedPatient);
+      requestBody.patientId = selectedPatient;
       const patient = patients.find(p => p.id.toString() === selectedPatient);
       if (patient) {
-        const context = patient.roomNumber
+        requestBody.patientContext = patient.roomNumber
           ? `Patient MRN: ${patient.mrn}, Room: ${patient.roomNumber}`
           : `Patient MRN: ${patient.mrn}`;
-        formData.append('patientContext', context);
       }
     }
 
     try {
       const response = await fetch('/api/notes/voice', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
       });
 
       const result = await response.json();
@@ -124,7 +106,7 @@ export function VoiceNoteRecorder({ patients, onNoteGenerated }: VoiceNoteRecord
           selectedPatient ? parseInt(selectedPatient) : null
         );
       } else {
-        throw new Error(result.error || 'Failed to process recording');
+        throw new Error(result.error || 'Failed to generate note');
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to process recording';
@@ -134,16 +116,9 @@ export function VoiceNoteRecorder({ patients, onNoteGenerated }: VoiceNoteRecord
   };
 
   const handleReset = () => {
-    resetRecording();
+    resetTranscript();
     setState('idle');
     setError(null);
-    setDuration(0);
-  };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   // Show loading state until mounted to prevent hydration mismatch
@@ -175,8 +150,8 @@ export function VoiceNoteRecorder({ patients, onNoteGenerated }: VoiceNoteRecord
         <CardContent className="py-8 text-center">
           <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
           <p className="text-muted-foreground">
-            Audio recording is not supported in this browser.
-            Please use a modern browser like Chrome, Firefox, or Safari.
+            Speech recognition is not supported in this browser.
+            Please use Chrome, Edge, or Safari.
           </p>
         </CardContent>
       </Card>
@@ -222,13 +197,13 @@ export function VoiceNoteRecorder({ patients, onNoteGenerated }: VoiceNoteRecord
             <>
               <Button
                 size="lg"
-                onClick={startRecording}
+                onClick={handleStartRecording}
                 className="w-32 h-32 rounded-full bg-primary hover:bg-primary/90"
               >
                 <Mic className="w-12 h-12" />
               </Button>
               <p className="text-muted-foreground text-center">
-                Press to start recording.<br />
+                Press to start dictating.<br />
                 Speak naturally about the patient.
               </p>
             </>
@@ -236,21 +211,28 @@ export function VoiceNoteRecorder({ patients, onNoteGenerated }: VoiceNoteRecord
 
           {state === 'recording' && (
             <>
-              <div className="text-4xl font-mono text-red-500 animate-pulse">
-                {formatTime(duration)}
-              </div>
+              <div className="w-4 h-4 rounded-full bg-red-500 animate-pulse" />
               <Button
                 size="lg"
                 variant="destructive"
-                onClick={stopRecording}
+                onClick={handleStopRecording}
                 className="w-32 h-32 rounded-full"
               >
                 <Square className="w-12 h-12" />
               </Button>
               <p className="text-muted-foreground text-center">
-                Recording... Press to stop when done.<br />
-                Include subjective, objective, assessment, and plan.
+                Listening... Press to stop when done.
               </p>
+
+              {/* Live transcript preview */}
+              {(transcript || interimTranscript) && (
+                <div className="w-full mt-4 p-3 bg-muted/50 rounded-lg max-h-32 overflow-y-auto">
+                  <p className="text-sm">
+                    {transcript}
+                    <span className="text-muted-foreground italic">{interimTranscript}</span>
+                  </p>
+                </div>
+              )}
             </>
           )}
 
@@ -258,9 +240,9 @@ export function VoiceNoteRecorder({ patients, onNoteGenerated }: VoiceNoteRecord
             <>
               <Loader2 className="w-16 h-16 animate-spin text-primary" />
               <div className="text-center space-y-1">
-                <p className="font-medium">Processing...</p>
+                <p className="font-medium">Generating SOAP note...</p>
                 <p className="text-sm text-muted-foreground">
-                  Transcribing audio and generating SOAP note
+                  Processing your dictation with AI
                 </p>
               </div>
             </>
@@ -292,10 +274,10 @@ export function VoiceNoteRecorder({ patients, onNoteGenerated }: VoiceNoteRecord
           <div className="bg-muted/50 rounded-lg p-4">
             <p className="text-sm font-medium mb-2">Tips for best results:</p>
             <ul className="text-sm text-muted-foreground space-y-1">
-              <li>- State the chief complaint and history</li>
-              <li>- Mention vitals and physical exam findings</li>
-              <li>- Include relevant lab results</li>
-              <li>- Describe your assessment and plan</li>
+              <li>• State the chief complaint and history</li>
+              <li>• Mention vitals and physical exam findings</li>
+              <li>• Include relevant lab results</li>
+              <li>• Describe your assessment and plan</li>
             </ul>
           </div>
         )}

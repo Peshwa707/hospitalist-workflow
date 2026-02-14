@@ -1,93 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { voiceToNotePrompt, VOICE_TO_NOTE_SYSTEM_PROMPT } from '@/lib/prompts/voice-to-note';
 
-// Lazy initialization to avoid build-time errors when API keys are not set
-let openai: OpenAI | null = null;
-let anthropic: Anthropic | null = null;
+// Lazy initialization for Google Gemini API
+let genAI: GoogleGenerativeAI | null = null;
 
-function getOpenAIClient(): OpenAI {
-  if (!openai) {
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY environment variable is not set');
-    }
-    openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
-  }
-  return openai;
-}
+function getGeminiClient(): GoogleGenerativeAI {
+  if (!genAI) {
+    const apiKey = process.env.GOOGLE_API_KEY;
 
-function getAnthropicClient(): Anthropic {
-  if (!anthropic) {
-    if (!process.env.ANTHROPIC_API_KEY) {
-      throw new Error('ANTHROPIC_API_KEY environment variable is not set');
+    if (!apiKey) {
+      throw new Error('GOOGLE_API_KEY environment variable is not set');
     }
-    anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
+
+    genAI = new GoogleGenerativeAI(apiKey);
   }
-  return anthropic;
+  return genAI;
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const audioFile = formData.get('audio') as File | null;
-    const patientId = formData.get('patientId') as string | null;
-    const patientContext = formData.get('patientContext') as string | null;
+    const contentType = request.headers.get('content-type') || '';
 
-    if (!audioFile) {
+    let transcription: string;
+    let patientId: string | null = null;
+    let patientContext: string | null = null;
+
+    // Handle both JSON (browser speech) and FormData
+    if (contentType.includes('application/json')) {
+      const body = await request.json();
+      transcription = body.transcription;
+      patientId = body.patientId || null;
+      patientContext = body.patientContext || null;
+    } else {
+      const formData = await request.formData();
+      transcription = formData.get('transcription') as string;
+      patientId = formData.get('patientId') as string | null;
+      patientContext = formData.get('patientContext') as string | null;
+    }
+
+    if (!transcription || transcription.trim().length === 0) {
       return NextResponse.json(
-        { success: false, error: 'No audio file provided' },
+        { success: false, error: 'No transcription provided' },
         { status: 400 }
       );
     }
 
-    // Check file size (max 25MB for Whisper)
-    if (audioFile.size > 25 * 1024 * 1024) {
-      return NextResponse.json(
-        { success: false, error: 'Audio file too large. Maximum size is 25MB.' },
-        { status: 400 }
-      );
-    }
-
-    const openaiClient = getOpenAIClient();
-    const anthropicClient = getAnthropicClient();
-
-    // Step 1: Transcribe with Whisper
-    const transcription = await openaiClient.audio.transcriptions.create({
-      file: audioFile,
-      model: 'whisper-1',
-      language: 'en',
-      prompt: 'Medical dictation for hospital progress note. Terms: vitals, labs, assessment, plan, medications, diagnosis, subjective, objective, physical exam, heart rate, blood pressure, oxygen saturation, respiratory rate, temperature.',
+    const client = getGeminiClient();
+    const model = client.getGenerativeModel({
+      model: 'gemini-2.0-flash',
     });
 
-    if (!transcription.text || transcription.text.trim().length === 0) {
-      return NextResponse.json(
-        { success: false, error: 'No speech detected in the audio' },
-        { status: 400 }
-      );
-    }
+    // Generate SOAP note with Gemini
+    const fullPrompt = `${VOICE_TO_NOTE_SYSTEM_PROMPT}\n\n${voiceToNotePrompt(transcription, patientContext || undefined)}`;
+    const result = await model.generateContent(fullPrompt);
 
-    // Step 2: Generate SOAP note with Claude
-    const message = await anthropicClient.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
-      system: VOICE_TO_NOTE_SYSTEM_PROMPT,
-      messages: [
-        {
-          role: 'user',
-          content: voiceToNotePrompt(transcription.text, patientContext || undefined),
-        },
-      ],
-    });
-
-    // Safely extract text from Claude response
-    const soapNote = message.content.length > 0 && message.content[0].type === 'text'
-      ? message.content[0].text
-      : '';
+    const response = result.response;
+    const soapNote = response.text();
 
     if (!soapNote) {
       return NextResponse.json(
@@ -99,7 +68,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        transcription: transcription.text,
+        transcription,
         soapNote,
         patientId: patientId || null,
       },
@@ -107,34 +76,18 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Voice-to-note error:', error);
 
-    if (error instanceof OpenAI.APIError) {
-      if (error.status === 401) {
-        return NextResponse.json(
-          { success: false, error: 'Invalid OpenAI API key. Please check your configuration.' },
-          { status: 401 }
-        );
-      }
-      return NextResponse.json(
-        { success: false, error: `Transcription failed: ${error.message}` },
-        { status: error.status || 500 }
-      );
-    }
+    const message = error instanceof Error ? error.message : 'Failed to process voice note';
 
-    if (error instanceof Anthropic.APIError) {
-      if (error.status === 401) {
-        return NextResponse.json(
-          { success: false, error: 'Invalid Anthropic API key. Please check your configuration.' },
-          { status: 401 }
-        );
-      }
+    // Check for specific Google API errors
+    if (message.includes('API key')) {
       return NextResponse.json(
-        { success: false, error: `Note generation failed: ${error.message}` },
-        { status: error.status || 500 }
+        { success: false, error: 'Invalid Google API key. Please check your configuration.' },
+        { status: 401 }
       );
     }
 
     return NextResponse.json(
-      { success: false, error: 'Failed to process voice note' },
+      { success: false, error: message },
       { status: 500 }
     );
   }
